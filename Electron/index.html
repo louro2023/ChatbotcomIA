@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Chatbot WhatsApp - Painel de Controle</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'none';">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="logo">
+        <div class="logo-icon">💬</div>
+        <div class="logo-text">
+          <h1>ChatBot</h1>
+          <p>WhatsApp Automation</p>
+        </div>
+      </div>
+
+      <nav class="nav-menu">
+        <button class="nav-item active" data-section="status">
+          <span class="icon">📊</span> Status
+        </button>
+        <button class="nav-item" data-section="messages">
+          <span class="icon">💬</span> Respostas
+        </button>
+        <button class="nav-item" data-section="bulk">
+          <span class="icon">📣</span> Disparos
+        </button>
+        <button class="nav-item" data-section="ai">
+          <span class="icon">🤖</span> IA & Voz
+        </button>
+        <button class="nav-item" data-section="help">
+          <span class="icon">❔</span> Ajuda
+        </button>
+      </nav>
+
+      <button id="btnSair" class="btn-logout">Sair</button>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="content">
+      <!-- Header -->
+      <header class="app-header">
+        <div class="header-content">
+          <h1>Painel de Controle</h1>
+          <p class="subtitle">Gerencie seu chatbot WhatsApp</p>
+        </div>
+        <div class="header-icons">
+          <div id="waStatus" class="status-indicator">
+            <span class="status-dot disconnected">●</span>
+            <span id="waStatusText">Desconectado</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Status Section -->
+      <section id="status-section" class="section active">
+        <div class="status-container">
+          <div class="status-card">
+            <div class="card-header">
+              <h2>Conexão WhatsApp</h2>
+              <div class="connection-actions">
+                <button id="btnReconectar" class="btn btn-small btn-secondary" style="display:none;">
+                  <span class="icon">🔄</span> Reconectar
+                </button>
+                <button id="btnResetWhatsApp" class="btn btn-small btn-danger">
+                  <span class="icon">📱</span> Resetar conexão
+                </button>
+              </div>
+            </div>
+
+            <div id="errorArea" class="error-message" style="display:none;">
+              <span class="error-icon">⚠️</span>
+              <span id="errorText"></span>
+            </div>
+
+            <div id="loadingBarArea" class="loading-container" style="display:none;">
+              <div id="connectionLoader" class="connection-loader">
+                <div class="connection-loader-top">
+                  <div id="connectionLoaderIcon" class="connection-loader-icon">
+                    <span class="loader-phone">📱</span>
+                    <span class="loader-orbit"></span>
+                  </div>
+                  <div class="connection-loader-copy">
+                    <span id="connectionLoaderEyebrow">Conectando ao WhatsApp</span>
+                    <h3 id="connectionLoaderTitle">Preparando conexão segura...</h3>
+                    <p id="connectionLoaderText">Aguarde enquanto iniciamos os serviços necessários.</p>
+                  </div>
+                  <strong id="connectionLoaderPercent">0%</strong>
+                </div>
+                <div class="connection-progress-track">
+                  <div id="connectionProgressBar" class="connection-progress-bar"></div>
+                  <div class="connection-progress-shine"></div>
+                </div>
+                <div class="connection-steps">
+                  <div id="connectionStepQr" class="connection-step active">
+                    <span>1</span><small>QR Code</small>
+                  </div>
+                  <div id="connectionStepAuth" class="connection-step">
+                    <span>2</span><small>Autenticação</small>
+                  </div>
+                  <div id="connectionStepSync" class="connection-step">
+                    <span>3</span><small>Sincronização</small>
+                  </div>
+                  <div id="connectionStepReady" class="connection-step">
+                    <span>4</span><small>Concluído</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div id="qrcodeContainer" class="qrcode-box" style="display:none;">
+              <div class="qrcode-header">Escaneie para Conectar</div>
+              <div id="qrcodeImg" class="qrcode"></div>
+              <div class="qrcode-info">
+                <p>📱 Use seu celular para escanear este QR Code</p>
+                <p class="small">A conexão será mantida para próximas inicializações</p>
+              </div>
+            </div>
+
+            <div id="connectedArea" class="connected-box" style="display:none;">
+              <div class="success-icon">✅</div>
+              <h3>Conectado com Sucesso!</h3>
+              <p>Seu WhatsApp está pronto para receber mensagens</p>
+              <div class="stats">
+                <div class="stat-item">
+                  <span class="stat-label">Status</span>
+                  <span class="stat-value online">Online</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Automatic Responses Section -->
+      <section id="messages-section" class="section">
+        <div class="section-header messages-section-header">
+          <div>
+            <h2>Respostas Automáticas</h2>
+            <p>Configure a primeira mensagem, as regras e a resposta usada quando nenhuma regra corresponder</p>
+          </div>
+          <label class="ai-toggle-switch messages-toggle" title="Ativar ou desativar as mensagens padrão">
+            <input type="checkbox" id="defaultMessagesEnabled" checked>
+            <span class="ai-toggle-track"><span class="ai-toggle-thumb"></span></span>
+            <span id="defaultMessagesStatus" class="active">Mensagens ativadas</span>
+          </label>
+        </div>
+
+        <div class="automation-mode-note">
+          <div class="automation-mode-icon">ℹ️</div>
+          <div>
+            <strong>Como funciona quando a IA está desativada</strong>
+            <p>O bot segue a ordem abaixo. As regras são usadas somente com a IA desligada; a primeira mensagem pode ser usada nos dois modos.</p>
+          </div>
+        </div>
+
+        <div class="automation-flow" aria-label="Ordem das respostas automáticas com a IA desativada">
+          <div><span>1</span><strong>Primeira interação</strong><small>Envia a saudação após 30 minutos sem novas mensagens do contato.</small></div>
+          <div><span>2</span><strong>Procurar uma regra</strong><small>Compara a mensagem recebida com as palavras-chave cadastradas.</small></div>
+          <div><span>3</span><strong>Usar o fallback</strong><small>Se nenhuma regra combinar, envia a mensagem padrão sem resposta.</small></div>
+        </div>
+
+        <div class="automation-message-grid">
+          <div class="card automation-step-card">
+            <div class="automation-card-heading"><span>1</span><div><h3 class="card-title">Primeira Mensagem</h3><p>Saudação enviada antes da IA ou das regras assumirem o atendimento.</p></div></div>
+            <form id="defaultMessageForm" class="form-stack">
+              <label for="defaultMessage">Mensagem enviada na primeira interação</label>
+              <textarea id="defaultMessage" placeholder="Olá! Como posso ajudá-lo?" class="textarea" required></textarea>
+              <button type="submit" id="saveDefaultMessageBtn" class="btn btn-primary">Salvar Mensagem</button>
+              <div id="defaultMessageSaveStatus" class="message-save-feedback" role="status" aria-live="polite"></div>
+            </form>
+          </div>
+
+          <div class="card automation-step-card">
+            <div class="automation-card-heading"><span>3</span><div><h3 class="card-title">Mensagem sem regra correspondente</h3><p>Resposta de segurança para não deixar o contato sem retorno.</p></div></div>
+            <form id="defaultNoReplyForm" class="form-stack">
+              <label for="defaultNoReply">Mensagem enviada quando nenhuma regra corresponder</label>
+              <textarea id="defaultNoReply" placeholder="Não encontrei uma resposta automática. Digite: horário, endereço ou atendimento." class="textarea" required></textarea>
+              <button type="submit" id="saveDefaultNoReplyBtn" class="btn btn-primary">Salvar Mensagem</button>
+              <div id="defaultNoReplySaveStatus" class="message-save-feedback" role="status" aria-live="polite"></div>
+            </form>
+          </div>
+        </div>
+
+        <div class="card automation-rules-card">
+          <div class="automation-card-heading"><span>2</span><div><h3 class="card-title">Regras por palavra-chave</h3><p>Cadastre uma mensagem recebida e a resposta exata que o bot deve enviar quando a IA estiver desativada.</p></div></div>
+          <div class="automation-rules-layout">
+            <form id="ruleForm" class="form-stack automation-rule-form">
+              <div class="form-group">
+                <label for="trigger">Mensagem ou palavra-chave recebida</label>
+                <input type="text" id="trigger" placeholder="Ex.: horário" required>
+                <small>A correspondência é exata. “Horário?” e “Qual o horário?” precisam de regras próprias.</small>
+              </div>
+              <div class="form-group">
+                <label for="response">Resposta automática</label>
+                <textarea id="response" placeholder="Ex.: Atendemos de segunda a sexta, das 8h às 18h." class="textarea automation-rule-response" required></textarea>
+              </div>
+              <button type="submit" id="submitBtn" class="btn btn-primary"><span class="icon">➕</span> Adicionar Regra</button>
+            </form>
+            <div class="automation-rules-list">
+              <h4>Regras cadastradas</h4>
+              <ul id="rulesList" class="list"></ul>
+              <div id="rulesEmpty" class="empty-state">
+                <div class="empty-icon">📋</div>
+                <p>Nenhuma regra configurada ainda</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Bulk Messaging Section -->
+      <section id="bulk-section" class="section">
+        <div class="section-header">
+          <h2>Disparos de Mensagens</h2>
+          <p>Gerencie contatos e envie texto, imagem ou ambos pela conexão atual</p>
+        </div>
+
+        <div class="bulk-layout">
+          <div class="card">
+            <div class="card-header">
+              <h3>👥 Contatos</h3>
+              <button type="button" id="bulkImportContacts" class="btn btn-secondary btn-small">Importar XLSX/CSV</button>
+            </div>
+            <form id="bulkContactForm" class="form-grid bulk-contact-form">
+              <input type="hidden" id="bulkContactId">
+              <div class="form-group">
+                <label for="bulkContactName">Nome</label>
+                <input type="text" id="bulkContactName" placeholder="Nome do contato">
+              </div>
+              <div class="form-group">
+                <label for="bulkContactPhone">WhatsApp</label>
+                <input type="text" id="bulkContactPhone" placeholder="5511999999999" required>
+              </div>
+              <button type="submit" id="bulkSaveContact" class="btn btn-primary">Adicionar</button>
+            </form>
+
+            <div class="bulk-toolbar">
+              <label class="checkbox-label compact">
+                <input type="checkbox" id="bulkSelectAll">
+                <span class="checkbox-custom"></span>
+                Selecionar todos
+              </label>
+              <span id="bulkContactCount" class="text-muted">0 contatos</span>
+            </div>
+            <div id="bulkContactsList" class="bulk-contacts-list"></div>
+          </div>
+
+          <div class="card">
+            <h3 class="card-title">📨 Nova campanha</h3>
+            <div class="form-stack">
+              <div class="form-group">
+                <label for="bulkMessage">Mensagem</label>
+                <textarea id="bulkMessage" placeholder="Digite a mensagem que será enviada..."></textarea>
+                <div class="tag-toolbar" aria-label="Inserir tag na mensagem">
+                  <span>Inserir tag:</span>
+                  <button type="button" class="tag-chip" data-tag="{Nome}">{Nome}</button>
+                  <button type="button" class="tag-chip" data-tag="{PrimeiroNome}">{PrimeiroNome}</button>
+                  <button type="button" class="tag-chip" data-tag="{Telefone}">{Telefone}</button>
+                  <button type="button" class="tag-chip" data-tag="{Data}">{Data}</button>
+                  <button type="button" class="tag-chip" data-tag="{Hora}">{Hora}</button>
+                </div>
+                <div class="message-preview">
+                  <span>Prévia:</span>
+                  <p id="bulkMessagePreview">Digite uma mensagem para visualizar a personalização.</p>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Imagem opcional</label>
+                <div class="bulk-file-row">
+                  <button type="button" id="bulkSelectImage" class="btn btn-secondary">Selecionar imagem</button>
+                  <button type="button" id="bulkClearImage" class="btn btn-secondary btn-small" style="display:none;">Remover</button>
+                </div>
+                <span id="bulkImageName" class="text-muted">Nenhuma imagem selecionada</span>
+              </div>
+              <div class="form-group">
+                <label for="bulkDelay">Intervalo entre envios (segundos)</label>
+                <input type="number" id="bulkDelay" min="3" max="600" value="10">
+                <small>Use intervalos adequados e envie somente para contatos que autorizaram o recebimento.</small>
+              </div>
+              <label class="checkbox-label">
+                <input type="checkbox" id="bulkConsent">
+                <span class="checkbox-custom"></span>
+                Confirmo que os contatos selecionados autorizaram estas mensagens
+              </label>
+              <div class="bulk-actions">
+                <button type="button" id="bulkStart" class="btn btn-primary">Iniciar envio</button>
+                <button type="button" id="bulkCancel" class="btn btn-danger" style="display:none;">Cancelar</button>
+              </div>
+            </div>
+
+            <div id="bulkProgressArea" class="bulk-progress-area" style="display:none;">
+              <div class="bulk-progress-header">
+                <strong id="bulkProgressText">Preparando...</strong>
+                <span id="bulkProgressStats">0/0</span>
+              </div>
+              <div class="bulk-progress-track"><div id="bulkProgressBar" class="bulk-progress-bar"></div></div>
+              <div id="bulkProgressLog" class="bulk-progress-log"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Help Section -->
+      <section id="help-section" class="section">
+        <div class="section-header">
+          <h2>Como usar o sistema</h2>
+          <p>Guia rápido do chatbot, dos disparos e das mensagens personalizadas</p>
+        </div>
+
+        <div class="help-grid">
+          <article class="card help-card">
+            <h3>1. Conectar o WhatsApp</h3>
+            <p>Na aba <strong>Status</strong>, escaneie o QR Code usando a opção <strong>Aparelhos conectados</strong> do WhatsApp no celular.</p>
+            <p><strong>Reconectar</strong> tenta recuperar a sessão atual. <strong>Resetar conexão</strong> encerra a sessão e gera um QR Code novo.</p>
+          </article>
+
+          <article class="card help-card">
+            <h3>2. Respostas automáticas</h3>
+            <p>Na aba <strong>Respostas</strong>, configure em um só lugar a saudação inicial, as palavras-chave e a mensagem usada quando nenhuma regra for encontrada.</p>
+            <p>A aba <strong>IA & Voz</strong> permite configurar o Gemini, o contexto de atendimento e respostas em áudio.</p>
+          </article>
+
+          <article class="card help-card help-automation-guide">
+            <h3>Como usar Mensagens e Regras sem a IA</h3>
+            <p>Com a IA desativada, o atendimento funciona como um menu automático previsível. O sistema sempre segue esta ordem:</p>
+            <div class="help-automation-flow">
+              <div><span>1</span><strong>Primeira Mensagem</strong><p>Se for a primeira interação ou o contato estiver há pelo menos 30 minutos sem enviar mensagens, o sistema envia somente a saudação inicial.</p></div>
+              <div><span>2</span><strong>Regras</strong><p>Na próxima mensagem, procura uma palavra-chave exatamente igual ao texto recebido, sem diferenciar letras maiúsculas e minúsculas.</p></div>
+              <div><span>3</span><strong>Mensagem padrão</strong><p>Quando nenhuma regra corresponder, envia a resposta “sem regra correspondente” para orientar o contato.</p></div>
+            </div>
+            <div class="help-ai-columns">
+              <div>
+                <h4>Exemplo prático</h4>
+                <div class="automation-example">
+                  <span>Contato:</span><code>Olá</code>
+                  <span>Bot:</span><code>Olá! Digite: horário, endereço ou atendente.</code>
+                  <span>Contato:</span><code>horário</code>
+                  <span>Regra:</span><code>Atendemos de segunda a sexta, das 8h às 18h.</code>
+                </div>
+              </div>
+              <div>
+                <h4>Boas práticas</h4>
+                <ul>
+                  <li>Use palavras curtas e fáceis, como <strong>horário</strong>, <strong>endereço</strong> e <strong>atendente</strong>.</li>
+                  <li>Informe as opções disponíveis na Primeira Mensagem e também na mensagem sem regra.</li>
+                  <li>Cadastre variações comuns separadamente: <strong>horário</strong>, <strong>horario</strong> e <strong>qual o horário</strong>.</li>
+                  <li>Teste pelo WhatsApp depois de salvar e mantenha a IA desativada durante o teste das regras.</li>
+                </ul>
+              </div>
+            </div>
+            <p class="help-ai-note"><strong>Importante:</strong> a chave “Mensagens padrão” liga ou desliga a Primeira Mensagem e a resposta sem regra. As regras permanecem cadastradas e funcionam com a IA desativada. Se a IA estiver ativada, ela assume as respostas depois da saudação inicial.</p>
+          </article>
+
+          <article class="card help-card help-ai-guide">
+            <h3>Como funciona a Inteligência Artificial</h3>
+            <p>A IA usa o modelo <strong>Gemini 3.5 Flash</strong> para interpretar a mensagem recebida e criar uma resposta de atendimento. Ela só responde quando a chave estiver validada e a opção <strong>IA ativada</strong> estiver ligada.</p>
+            <div class="help-ai-columns">
+              <div>
+                <h4>Fluxo do atendimento</h4>
+                <ol>
+                  <li>O sistema identifica uma conversa privada com notificação de mensagem não lida ou marcada como não lida.</li>
+                  <li>Na primeira interação, envia a <strong>Primeira Mensagem</strong> configurada na aba Mensagens.</li>
+                  <li>Nas mensagens seguintes, o Gemini responde automaticamente até a IA ser desativada.</li>
+                </ol>
+              </div>
+              <div>
+                <h4>O que ela consegue fazer</h4>
+                <ul>
+                  <li>Responder textos conforme os contextos e instruções salvos.</li>
+                  <li>Interpretar imagens, áudios, vídeos e PDFs compatíveis recebidos no WhatsApp.</li>
+                  <li>Usar o histórico recente quando <strong>Manter histórico</strong> estiver ativado.</li>
+                  <li>Enviar também a resposta em áudio quando o TTS estiver configurado.</li>
+                </ul>
+              </div>
+            </div>
+            <h4>Como conseguir a chave gratuita</h4>
+            <ol>
+              <li>Abra o <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">Google AI Studio — API Keys</a> e entre com sua conta Google.</li>
+              <li>Aceite os termos, escolha ou crie um projeto e clique em <strong>Create API key</strong>.</li>
+              <li>Copie a chave, abra <strong>IA & Voz</strong>, cole no campo API Key e clique em <strong>Salvar e ativar API Key</strong>. O sistema testa, salva de forma protegida e ativa a IA.</li>
+            </ol>
+            <p class="help-ai-note"><strong>Free Tier:</strong> o uso gratuito depende da região, do projeto e dos limites definidos pelo Google. O conteúdo enviado no nível gratuito pode ser usado pelo Google para melhorar seus produtos; evite enviar informações pessoais ou sigilosas.</p>
+            <p><strong>Tokens e cotas:</strong> tokens são pequenas partes do texto processado. O painel da aba IA mostra o consumo registrado por este sistema. O Google não informa pela API o saldo restante do Free Tier; a cota oficial deve ser consultada no AI Studio.</p>
+            <div class="api-guide-links">
+              <a href="https://ai.google.dev/gemini-api/docs/api-key" target="_blank" rel="noreferrer">Documentação da chave</a>
+              <a href="https://ai.google.dev/gemini-api/docs/pricing" target="_blank" rel="noreferrer">Preços e Free Tier</a>
+              <a href="https://ai.google.dev/gemini-api/docs/tokens" target="_blank" rel="noreferrer">Como funcionam os tokens</a>
+            </div>
+          </article>
+
+          <article class="card help-card">
+            <h3>3. Contatos e disparos</h3>
+            <p>Em <strong>Disparos</strong>, cadastre contatos manualmente ou importe um arquivo XLSX/CSV com uma coluna <strong>Nome</strong> e outra chamada <strong>WhatsApp</strong>, <strong>Telefone</strong>, <strong>Celular</strong> ou <strong>Número</strong>.</p>
+            <p>Selecione os destinatários, escreva a mensagem, anexe uma imagem se desejar, defina o intervalo e inicie a campanha.</p>
+          </article>
+
+          <article class="card help-card help-tags">
+            <h3>4. Tags de personalização</h3>
+            <p>As tags são substituídas separadamente antes do envio para cada contato. Você pode digitá-las ou usar os botões abaixo da mensagem.</p>
+            <div class="tag-reference">
+              <code>{Nome}</code><span>Nome completo. Ex.: João da Silva</span>
+              <code>{PrimeiroNome}</code><span>Primeiro nome. Ex.: João</span>
+              <code>{Telefone}</code><span>Número cadastrado do contato</span>
+              <code>{Data}</code><span>Data do envio no formato brasileiro</span>
+              <code>{Hora}</code><span>Horário do envio</span>
+            </div>
+            <div class="help-example">
+              <strong>Exemplo:</strong>
+              <code>Olá, {PrimeiroNome}! Sua mensagem foi enviada em {Data} às {Hora}.</code>
+              <span>Para João, o resultado será: “Olá, João! Sua mensagem foi enviada em 15/07/2026 às 14:30.”</span>
+            </div>
+            <p>Se um contato não possuir nome, o sistema usa <strong>Cliente</strong>. As tags aceitam letras maiúsculas ou minúsculas.</p>
+          </article>
+
+          <article class="card help-card">
+            <h3>5. Envio responsável</h3>
+            <p>Envie mensagens somente para pessoas que autorizaram o contato. Use intervalos adequados, acompanhe o progresso e cancele a campanha caso identifique algum problema.</p>
+            <p>O botão <strong>Sair</strong> desconecta a conta do WhatsApp Web e exigirá um novo QR Code no próximo acesso.</p>
+          </article>
+        </div>
+      </section>
+
+      <!-- AI Section -->
+      <section id="ai-section" class="section">
+        <div class="section-header">
+          <h2>Inteligência Artificial</h2>
+          <p>Conecte o Gemini, defina como ele deve atender e acompanhe o uso da API</p>
+        </div>
+
+        <div class="ai-journey" aria-label="Etapas de configuração da inteligência artificial">
+          <div><span>1</span><strong>Conectar</strong><small>Validar a chave Gemini</small></div>
+          <div><span>2</span><strong>Personalizar</strong><small>Definir contexto e histórico</small></div>
+          <div><span>3</span><strong>Atender</strong><small>Responder por texto ou áudio</small></div>
+        </div>
+
+        <div class="card ai-primary-card">
+          <div class="ai-card-heading">
+            <div class="ai-step-icon">1</div>
+            <div>
+              <h3 class="card-title">Conectar e ativar o Gemini</h3>
+              <p>Informe a chave uma única vez. O sistema testa, protege e reutiliza a configuração nos próximos acessos.</p>
+            </div>
+          </div>
+          <form id="aiApiKeyForm" class="form-grid">
+            <div class="form-group full">
+              <label for="aiApiKey">API Key</label>
+              <input type="password" id="aiApiKey" placeholder="Cole sua API Key aqui..." required>
+              <small>Crie a chave no Google AI Studio e não compartilhe com outras pessoas.</small>
+            </div>
+            <div class="ai-key-actions">
+              <button type="submit" id="saveAiApiKeyBtn" class="btn btn-primary">Salvar e ativar API Key</button>
+              <label class="ai-toggle-switch ai-master-toggle" title="Ativar ou desativar as respostas da IA">
+                <input type="checkbox" id="aiEnabled" checked>
+                <span class="ai-toggle-track"><span class="ai-toggle-thumb"></span></span>
+                <span id="aiMasterStatus">IA ativada</span>
+              </label>
+            </div>
+            <div id="aiApiStatus" class="api-status" role="status" aria-live="polite"></div>
+            <div class="ai-quick-options">
+              <label class="checkbox-label ai-option-tile">
+                <input type="checkbox" id="aiUseConversation" checked>
+                <span class="checkbox-custom"></span>
+                <span class="ai-option-copy">
+                  <strong>Manter histórico da conversa</strong>
+                  <small>A IA considera as mensagens anteriores para responder com continuidade.</small>
+                </span>
+              </label>
+              <label class="checkbox-label ai-option-tile">
+                <input type="checkbox" id="aiVoiceEnabled">
+                <span class="checkbox-custom"></span>
+                <span class="ai-option-copy">
+                  <strong>Responder também em áudio</strong>
+                  <small>Envia texto e áudio quando a chave de voz estiver configurada.</small>
+                </span>
+              </label>
+            </div>
+          </form>
+        </div>
+
+        <div class="ai-settings-grid">
+          <div class="card ai-context-card">
+            <div class="ai-card-heading">
+              <div class="ai-step-icon">2</div>
+              <div>
+                <h3 class="card-title">Personalizar o atendimento</h3>
+                <p>Adicione instruções sobre a empresa, tom de voz, produtos e regras de atendimento.</p>
+              </div>
+            </div>
+            <form id="aiContextForm" class="form-stack">
+              <label for="aiContext">Nova instrução para a IA</label>
+              <textarea id="aiContext" placeholder="Ex.: Você é o assistente da empresa. Responda em português, seja objetivo e não invente preços." class="textarea" required></textarea>
+              <button type="submit" class="btn btn-primary">Adicionar instrução</button>
+            </form>
+            <div class="ai-saved-contexts">
+              <h4>Instruções salvas</h4>
+              <ul id="aiContextList" class="list"></ul>
+            </div>
+          </div>
+
+          <div class="card ai-voice-card">
+            <div class="ai-card-heading">
+              <div class="ai-step-icon optional">3</div>
+              <div>
+                <h3 class="card-title">Configurar resposta em áudio</h3>
+                <p>Etapa opcional. A voz é gerada pelo ElevenLabs quando “Responder também em áudio” estiver ligado.</p>
+              </div>
+            </div>
+            <div class="voice-settings">
+              <div class="form-group">
+                <label for="elevenLabsApiKey">ElevenLabs API Key</label>
+                <input type="password" id="elevenLabsApiKey" placeholder="Cole a chave de voz">
+                <small>Esta chave é diferente da chave do Gemini.</small>
+              </div>
+              <div class="form-group">
+                <label for="elevenLabsVoiceId">Voz utilizada</label>
+                <select id="elevenLabsVoiceId" class="select">
+                  <option value="21m00Tcm4TlvDq8ikWAM">🎀 Rachel (Feminina, Natural)</option>
+                  <option value="AZnzlk1XvdvUeBnXmlld">😊 Domi (Feminina, Amigável)</option>
+                  <option value="EXAVITQu4vr4xnSDxMaL">💼 Bella (Feminina, Profissional)</option>
+                  <option value="VR6AewLTigWG4xSOukaG">🎙️ Arnold (Masculina, Autoridade)</option>
+                  <option value="ThT5KcBeYPX3keUQqHPh">👋 Josh (Masculina, Amigável)</option>
+                </select>
+              </div>
+              <button type="button" id="saveVoiceSettings" class="btn btn-primary">Salvar configurações de voz</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card gemini-usage-card">
+          <div class="gemini-usage-header">
+            <div>
+              <h3 class="card-title">Consumo da API Gemini</h3>
+              <p id="geminiUsagePeriod">Carregando o consumo registrado neste computador...</p>
+            </div>
+            <button type="button" id="refreshGeminiUsage" class="btn btn-secondary">Atualizar</button>
+          </div>
+          <div class="gemini-usage-grid" aria-live="polite">
+            <div><span>Solicitações</span><strong id="geminiUsageRequests">0</strong></div>
+            <div><span>Entrada</span><strong id="geminiUsagePrompt">0</strong><small>tokens</small></div>
+            <div><span>Resposta</span><strong id="geminiUsageResponse">0</strong><small>tokens</small></div>
+            <div><span>Raciocínio</span><strong id="geminiUsageThought">0</strong><small>tokens</small></div>
+            <div class="gemini-usage-total"><span>Total</span><strong id="geminiUsageTotal">0</strong><small>tokens</small></div>
+          </div>
+          <p id="geminiUsageUpdated" class="gemini-usage-updated">Nenhuma resposta da IA registrada ainda.</p>
+          <p class="gemini-quota-note"><strong>Saldo gratuito restante:</strong> o Google não disponibiliza esse valor pela API. Os números acima são o consumo local acumulado, não o saldo da conta. Consulte os limites oficiais no <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">Google AI Studio</a>.</p>
+        </div>
+
+        <details class="card api-guide ai-help-details">
+          <summary>
+            <span>Precisa de ajuda para conseguir a chave gratuita?</span>
+            <small>Abrir orientação rápida</small>
+          </summary>
+          <div class="ai-help-content">
+            <ol>
+              <li>Acesse <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">Google AI Studio — API Keys</a> e entre com sua conta Google.</li>
+              <li>Aceite os termos, crie ou selecione um projeto e clique em <strong>Create API key</strong>.</li>
+              <li>Copie a chave, cole no primeiro campo desta página e clique em <strong>Salvar e ativar API Key</strong>.</li>
+            </ol>
+            <p>O Free Tier depende da região, do projeto e dos limites definidos pelo Google. O guia completo sobre IA e privacidade está disponível na aba <strong>Ajuda</strong>.</p>
+            <div class="api-guide-links">
+              <a href="https://ai.google.dev/gemini-api/docs/api-key" target="_blank" rel="noreferrer">Documentação de chaves</a>
+              <a href="https://ai.google.dev/gemini-api/docs/pricing" target="_blank" rel="noreferrer">Preços e limites gratuitos</a>
+            </div>
+          </div>
+        </details>
+      </section>
+    </main>
+  </div>
+
+  <!-- Footer -->
+  <footer class="app-footer">
+    <div class="footer-content">
+      <p>Desenvolvido por <strong>Henrique Louro</strong></p>
+      <p>© 2025 - Todos os direitos reservados</p>
+    </div>
+  </footer>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
