@@ -1,6 +1,6 @@
-# Chatbot WhatsApp com IA
+# TurboWhats — atendimento inteligente para WhatsApp
 
-Aplicativo desktop para Windows que conecta uma conta do WhatsApp Web e automatiza atendimentos com mensagens iniciais, regras por palavra-chave, Google Gemini, respostas em áudio e disparos personalizados.
+O TurboWhats é um aplicativo desktop para Windows que conecta uma conta do WhatsApp Web e automatiza atendimentos com mensagens iniciais, regras por palavra-chave, Google Gemini, respostas em áudio e disparos personalizados.
 
 O painel é executado com Electron e mantém configurações e sessão localmente, permitindo reabrir o sistema sem configurar tudo novamente.
 
@@ -27,9 +27,9 @@ O painel é executado com Electron e mantém configurações e sessão localment
 
 ```mermaid
 flowchart TD
-    A[Mensagem privada não lida] --> B{Primeira interação ou 30 min sem mensagens?}
-    B -->|Sim e mensagem inicial ativa| C[Enviar Primeira Mensagem]
-    B -->|Não| D{IA ativada?}
+    A[Mensagem privada não lida] --> B{O bot já respondeu a este contato?}
+    B -->|Não, e mensagem inicial ativa| C[Enviar Primeira Mensagem]
+    B -->|Sim ou mensagem inicial inativa| D{IA ativada?}
     D -->|Sim| E[Agrupar mensagens por 2 segundos]
     E --> F[Consultar Gemini]
     F --> G[Enviar texto]
@@ -42,14 +42,14 @@ flowchart TD
 
 ### Quando a IA está ativada
 
-1. Em uma primeira interação, o contato recebe a mensagem inicial configurada.
+1. Na primeira resposta automática para cada contato, ele recebe a mensagem inicial configurada.
 2. A partir da próxima mensagem, o sistema agrupa mensagens próximas por dois segundos.
 3. O Gemini responde considerando as instruções salvas e, opcionalmente, o histórico.
 4. Se a resposta em áudio estiver ativada e o ElevenLabs estiver configurado, o sistema envia texto e áudio.
 
 ### Quando a IA está desativada
 
-1. A primeira interação recebe a **Primeira Mensagem**, se as mensagens padrão estiverem ativas.
+1. Se o bot ainda nunca respondeu ao contato, envia a **Primeira Mensagem**, se as mensagens padrão estiverem ativas.
 2. Nas mensagens seguintes, o sistema procura uma regra cuja palavra-chave seja exatamente igual ao texto recebido. A comparação ignora maiúsculas, minúsculas e espaços nas extremidades.
 3. Se nenhuma regra corresponder, envia a mensagem padrão de fallback.
 
@@ -65,6 +65,22 @@ Exemplo: uma regra para `horário` não corresponde automaticamente a `horário?
 - Chave do ElevenLabs somente se desejar respostas em áudio.
 
 ## Instalação
+
+### Executável portátil — usuário final
+
+O arquivo pronto fica em:
+
+```text
+dist\TurboWhats-Portable-1.0.3.exe
+```
+
+Basta copiar esse único arquivo para um computador Windows x64 e executá-lo. O usuário final não precisa instalar VS Code, Node.js, npm, Electron, Chrome ou Edge. O pacote inclui o Electron e um Chrome compatível usado exclusivamente pela automação do WhatsApp.
+
+Na primeira abertura, o portátil extrai seus componentes para uma pasta temporária do Windows. Por isso, a inicialização pode levar alguns segundos. Ele começa sem contatos, chaves de API ou sessão do WhatsApp e não importa dados da versão executada pelo código-fonte. Depois que o usuário salvar suas próprias configurações, elas ficam em `%APPDATA%\TurboWhats-Portable\app-data` e continuam disponíveis mesmo que o `.exe` seja movido ou substituído por uma versão nova.
+
+Como o projeto não possui um certificado comercial de assinatura de código, o Windows SmartScreen pode mostrar **Editor desconhecido**. Confira a origem do arquivo e o hash publicado antes de autorizar a execução.
+
+### Executar pelo código-fonte
 
 ```powershell
 git clone https://github.com/louro2023/ChatbotcomIA.git
@@ -90,7 +106,7 @@ O botão **Reconectar WhatsApp** tenta recuperar a sessão atual. **Resetar cone
 
 Na aba **Respostas**:
 
-1. Salve a mensagem enviada na primeira interação.
+1. Salve a mensagem usada como primeira resposta automática do bot.
 2. Cadastre palavras-chave e respostas automáticas.
 3. Salve uma mensagem de fallback para quando nenhuma regra corresponder.
 4. Desative a IA na aba **IA & Voz** para testar as regras.
@@ -133,12 +149,14 @@ A chave do ElevenLabs é diferente da chave do Gemini. Sem uma chave válida, o 
 
 ## Disparos personalizados
 
-A aba **Disparos** permite cadastrar contatos manualmente ou importar CSV/XLSX. A planilha deve conter:
+A aba **Disparos** permite cadastrar contatos manualmente escolhendo o país e informando o DDD e o número em campos separados. Por exemplo: `Brasil (+55)`, DDD `21` e número `981682922`. A prévia mostra o telefone completo antes de salvar, reduzindo erros de digitação.
+
+Também é possível importar CSV/XLSX. A planilha deve conter:
 
 - uma coluna `Nome`;
 - uma coluna `WhatsApp`, `Telefone`, `Celular` ou `Número`.
 
-Números brasileiros com 10 ou 11 dígitos recebem o código do país `55` automaticamente. Revise os contatos antes de iniciar.
+Números brasileiros importados com 10 ou 11 dígitos recebem o código do país `55` automaticamente. Para outros países, inclua o código internacional na planilha. Revise os contatos antes de iniciar.
 
 Tags disponíveis:
 
@@ -166,11 +184,13 @@ Esse contador começa quando a funcionalidade é utilizada nesta instalação. E
 
 ## Dados persistentes
 
-No Windows, os dados ficam em:
+No Windows, a versão portátil salva seus dados em:
 
 ```text
-%APPDATA%\cchatbot\app-data
+%APPDATA%\TurboWhats-Portable\app-data
 ```
+
+Ao executar pelo código-fonte, os dados de desenvolvimento permanecem separados em `%APPDATA%\cchatbot\app-data`.
 
 Principais itens:
 
@@ -179,6 +199,7 @@ Principais itens:
 | `config.json` | Mensagens, regras, contatos, opções da IA e chaves protegidas |
 | `whatsapp-session/` | Sessão local gerenciada pelo `LocalAuth` |
 | `gemini-usage.json` | Contador local de tokens e solicitações |
+| `first-message-state.json` | Identificadores anonimizados dos contatos que já receberam uma resposta |
 | `runtime-errors.log` | Diagnóstico de erros de execução |
 | `message-tracker.log` | Rastreamento técnico de mensagens processadas |
 
@@ -226,6 +247,10 @@ ChatbotcomIA/
 | `npm start` | Inicia o aplicativo |
 | `npm run check` | Verifica a sintaxe dos arquivos JavaScript |
 | `npm run smoke` | Executa uma inicialização rápida de diagnóstico |
+| `npm run prepare:brand` | Prepara o PNG e o ícone do TurboWhats usados no aplicativo e no executável |
+| `npm run prepare:browser` | Copia o Chrome compatível para o cache de build |
+| `npm run pack:win` | Gera uma pasta Windows descompactada para testes |
+| `npm run build:win` | Gera o executável portátil único para Windows x64 |
 
 Antes de enviar mudanças:
 
@@ -233,6 +258,15 @@ Antes de enviar mudanças:
 npm run check
 npm run smoke
 ```
+
+### Gerar uma nova versão do executável
+
+```powershell
+npm install
+npm run build:win
+```
+
+O processo usa `electron-builder`, incorpora o Chrome instalado pelo Puppeteer, aplica o ícone do TurboWhats e gera `dist\TurboWhats-Portable-<versão>.exe`. A compactação pode levar vários minutos e exige espaço temporário para aproximadamente 1 GB de arquivos.
 
 ## Solução de problemas
 
@@ -261,7 +295,7 @@ npm run smoke
 - Desative a IA durante o teste.
 - Use o texto exato cadastrado na palavra-chave.
 - Crie regras separadas para variações com acentos, frases ou pontuação.
-- Lembre que a primeira interação envia somente a mensagem inicial.
+- Lembre que a primeira resposta automática para cada contato envia somente a mensagem inicial.
 
 ### O áudio não é enviado
 

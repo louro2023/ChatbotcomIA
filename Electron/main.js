@@ -1,7 +1,7 @@
 // Função para consultar a IA Gemini (texto + multimodal + histórico)
 const GEMINI_MODEL = 'gemini-3.5-flash';
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
-const GEMINI_TIMEOUT_MS = 30000;
+const GEMINI_TIMEOUT_MS = 90000;
 const GEMINI_MAX_ATTEMPTS = 3;
 const GEMINI_MAX_INLINE_BYTES = 14 * 1024 * 1024;
 
@@ -68,7 +68,7 @@ async function callGemini(apiKey, body) {
       return data;
     } catch (error) {
       if (error.name === 'AbortError') {
-        throw new Error('O Gemini demorou mais de 30 segundos para responder. Verifique sua internet e tente novamente.');
+        throw new Error('O Gemini demorou mais de 90 segundos para responder. Verifique sua internet e tente novamente.');
       }
 
       const retryable = error instanceof TypeError || error.status === 429 || error.status >= 500;
@@ -150,6 +150,13 @@ async function askGeminiIA(userId, userMessage, attachments) {
 const { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } = require('electron');
 const path = require('path');
 const crypto = require('crypto');
+const isSmokeTest = process.argv.includes('--smoke-test') || process.env.CCHATBOT_SMOKE_TEST === '1';
+
+// A versão empacotada usa dados próprios e nunca importa contatos, chaves ou
+// sessões da cópia executada pelo código-fonte no mesmo computador.
+if (app.isPackaged) {
+  app.setPath('userData', path.join(app.getPath('appData'), 'TurboWhats-Portable'));
+}
 
 app.disableHardwareAcceleration();
 
@@ -163,9 +170,8 @@ const configPath = path.join(persistentDataRoot, 'config.json');
 const runtimeLogPath = path.join(persistentDataRoot, 'runtime-errors.log');
 const messageTrackerLogPath = path.join(persistentDataRoot, 'message-tracker.log');
 const geminiUsagePath = path.join(persistentDataRoot, 'gemini-usage.json');
+const firstMessageStatePath = path.join(persistentDataRoot, 'first-message-state.json');
 const delay = ms => new Promise(res => setTimeout(res, ms));
-const isSmokeTest = process.argv.includes('--smoke-test');
-const FIRST_MESSAGE_SESSION_MS = 30 * 60 * 1000;
 
 function migratePersistentData() {
   fs.mkdirSync(persistentDataRoot, { recursive: true });
@@ -276,6 +282,66 @@ function logMessageTracker(event, details = '') {
     fs.appendFileSync(messageTrackerLogPath, `${line}\n`);
   } catch (_logError) {
     // Tracking must never interrupt customer service.
+  }
+}
+
+if (!isSmokeTest) {
+  const hasSingleInstanceLock = app.requestSingleInstanceLock();
+  logMessageTracker('instancia-unica', hasSingleInstanceLock ? 'bloqueio adquirido' : 'outra instância detectada');
+  if (!hasSingleInstanceLock) app.quit();
+  app.on('second-instance', () => {
+    if (!mainWindow) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  });
+}
+
+function hashContactId(contactId) {
+  return crypto.createHash('sha256').update(String(contactId || '')).digest('hex');
+}
+
+function loadFirstMessageState() {
+  if (!fs.existsSync(firstMessageStatePath)) return new Set();
+  try {
+    const state = JSON.parse(fs.readFileSync(firstMessageStatePath, 'utf8'));
+    const hashes = Array.isArray(state?.greetedContactHashes) ? state.greetedContactHashes : [];
+    return new Set(hashes.filter(value => /^[a-f0-9]{64}$/i.test(String(value))));
+  } catch (error) {
+    logRuntimeError('primeira-mensagem:leitura', error);
+    return new Set();
+  }
+}
+
+function saveFirstMessageState() {
+  try {
+    fs.writeFileSync(firstMessageStatePath, JSON.stringify({
+      version: 1,
+      greetedContactHashes: [...greetedContactHashes]
+    }, null, 2));
+  } catch (error) {
+    logRuntimeError('primeira-mensagem:gravação', error);
+  }
+}
+
+function hasBotRespondedToContact(contactId) {
+  return greetedContactHashes.has(hashContactId(contactId));
+}
+
+function rememberBotResponse(contactId) {
+  const contactHash = hashContactId(contactId);
+  if (greetedContactHashes.has(contactHash)) return;
+  greetedContactHashes.add(contactHash);
+  saveFirstMessageState();
+}
+
+function clearFirstMessageState() {
+  greetedContactHashes.clear();
+  firstMessagePromises.clear();
+  try {
+    if (fs.existsSync(firstMessageStatePath)) fs.rmSync(firstMessageStatePath, { force: true });
+  } catch (error) {
+    logRuntimeError('primeira-mensagem:limpeza', error);
   }
 }
 
@@ -390,7 +456,8 @@ function loadDefaultNoReply() {
 }
 
 const conversationByUser = new Map();
-const lastInboundAtByUser = new Map();
+const greetedContactHashes = loadFirstMessageState();
+const firstMessagePromises = new Map();
 const processedMessageIds = new Map();
 const processingMessageIds = new Set();
 const MAX_TRACKED_MESSAGE_IDS = 5000;
@@ -402,6 +469,26 @@ let lastTrackerHeartbeatAt = 0;
 // Sistema de fila para evitar respostas múltiplas
 const messageQueue = new Map(); // userId -> { messages: [], processing: boolean, timer: null }
 const QUEUE_DELAY = 2000; // 2 segundos para agrupar mensagens
+
+async function sendConfiguredFirstMessage(contactId, message) {
+  if (hasBotRespondedToContact(contactId)) return false;
+  if (firstMessagePromises.has(contactId)) {
+    await firstMessagePromises.get(contactId);
+    return false;
+  }
+
+  const sendPromise = (async () => {
+    await sendWhatsAppText(contactId, message);
+    rememberBotResponse(contactId);
+    return true;
+  })();
+  firstMessagePromises.set(contactId, sendPromise);
+  try {
+    return await sendPromise;
+  } finally {
+    firstMessagePromises.delete(contactId);
+  }
+}
 
 let mainWindow = null;
 let bulkJob = null;
@@ -430,6 +517,26 @@ if (!directoryHasEntries(sessionPath)) {
 }
 fs.mkdirSync(sessionPath, { recursive: true });
 
+function resolveWhatsAppBrowserExecutable() {
+  if (app.isPackaged) {
+    const bundledExecutable = path.join(process.resourcesPath, 'browser', 'chrome.exe');
+    if (!fs.existsSync(bundledExecutable)) {
+      throw new Error(`Navegador interno não encontrado em ${bundledExecutable}. Reinstale o aplicativo.`);
+    }
+    return bundledExecutable;
+  }
+
+  try {
+    const developmentExecutable = require('puppeteer').executablePath();
+    if (developmentExecutable && fs.existsSync(developmentExecutable)) return developmentExecutable;
+  } catch (error) {
+    logRuntimeError('whatsapp:navegador-desenvolvimento', error);
+  }
+  throw new Error('O navegador necessário para o WhatsApp não foi encontrado. Execute npm install novamente.');
+}
+
+const whatsappBrowserExecutable = resolveWhatsAppBrowserExecutable();
+
 const client = new Client({
   authStrategy: new LocalAuth({
     clientId: 'cchatbot',
@@ -437,6 +544,7 @@ const client = new Client({
   }),
   puppeteer: {
     headless: true,
+    executablePath: whatsappBrowserExecutable,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -492,22 +600,23 @@ client.on('qr', qr => {
 client.on('loading_screen', (percent, message) => {
   console.log(`⏳ Carregando... ${percent}% - ${message}`);
 
-  let friendlyMessage = message;
-  if (message.includes('LOADING_INITIAL_STATE')) {
-    friendlyMessage = 'Conectando ao WhatsApp Web...';
-  } else if (message.includes('LOADING_CHATS')) {
-    friendlyMessage = 'Carregando conversas...';
-  } else if (message.includes('Qrcode')) {
-    friendlyMessage = 'Aguardando QR Code...';
+  const loadingMessage = String(message || '');
+  let friendlyMessage = 'Organizando os dados do WhatsApp...';
+  if (loadingMessage.includes('LOADING_INITIAL_STATE')) {
+    friendlyMessage = 'Validando os dados da sua conta...';
+  } else if (loadingMessage.includes('LOADING_CHATS')) {
+    friendlyMessage = 'Carregando conversas e mensagens não lidas...';
+  } else if (loadingMessage.includes('SYNC')) {
+    friendlyMessage = 'Sincronizando suas conversas...';
   }
 
   if (mainWindow) {
     mainWindow.webContents.send('wa-status', {
       connected: false,
-      message: `${friendlyMessage} (${percent}%)`,
+      message: friendlyMessage,
       loading: true,
       phase: 'sync',
-      progress: Math.min(95, 45 + Math.round(Number(percent || 0) * 0.5))
+      progress: Math.min(95, 55 + Math.round(Number(percent || 0) * 0.4))
     });
   }
 });
@@ -517,6 +626,7 @@ client.on('authenticated', () => {
   connectionState.attempting = false;
   connectionState.retryCount = 0;
   if (mainWindow) {
+    mainWindow.webContents.send('wa-qr', null);
     mainWindow.webContents.send('wa-status', {
       connected: false,
       message: 'QR Code confirmado. Autenticando sua conta...',
@@ -700,17 +810,13 @@ async function processIncomingMessage(msg) {
   const originalText = String(msg.body || '');
   const received = originalText.trim().toLowerCase();
 
-  const now = Date.now();
-  const lastInboundAt = lastInboundAtByUser.get(msg.from) || 0;
-  const isFirstMessage = !lastInboundAt || now - lastInboundAt >= FIRST_MESSAGE_SESSION_MS;
-
-  // A primeira interação recebe somente a mensagem inicial configurada.
-  if (defaultMessagesEnabled && isFirstMessage && defaultMessage) {
-    await sendWhatsAppText(msg.from, defaultMessage);
-    return true;
+  // A primeira resposta automática para cada contato usa a mensagem inicial.
+  if (defaultMessagesEnabled && defaultMessage && !hasBotRespondedToContact(msg.from)) {
+    const sentFirstMessage = await sendConfiguredFirstMessage(msg.from, defaultMessage);
+    if (sentFirstMessage) return true;
   }
 
-  // Depois da primeira interação, a IA assume sozinha enquanto estiver ativa.
+  // Depois da primeira resposta, a IA assume sozinha enquanto estiver ativa.
   if (aiEnabled) {
     const attachments = [];
     try {
@@ -725,17 +831,21 @@ async function processIncomingMessage(msg) {
     } catch (error) {
       console.warn('Não foi possível baixar a mídia recebida:', error.message);
     }
-    return await addToMessageQueue(msg.from, originalText, attachments);
+    const handledByAi = await addToMessageQueue(msg.from, originalText, attachments);
+    if (handledByAi) rememberBotResponse(msg.from);
+    return handledByAi;
   }
 
   // Com a IA desativada, usa as regras e a mensagem padrão sem resposta.
   const rule = rules.find(r => received === String(r?.trigger || '').trim().toLowerCase());
   if (rule) {
     await sendWhatsAppText(msg.from, rule.response, 2000);
+    rememberBotResponse(msg.from);
     return true;
-  } else if (defaultMessagesEnabled && defaultNoReply && !isFirstMessage) {
-    // Se não houver regra, envia mensagem padrão sem resposta a partir da segunda mensagem
+  } else if (defaultMessagesEnabled && defaultNoReply) {
+    // Se não houver regra, envia a mensagem padrão sem resposta.
     await sendWhatsAppText(msg.from, defaultNoReply, 2000);
+    rememberBotResponse(msg.from);
     return true;
   }
   return true;
@@ -774,7 +884,6 @@ async function handleIncomingMessage(msg, source = 'event') {
     const handled = await processIncomingMessage(msg);
     if (handled !== false) {
       rememberProcessedMessage(messageId);
-      lastInboundAtByUser.set(from, Date.now());
       logMessageTracker('respondida', `${messageId} via ${source}`);
     }
     return handled !== false;
@@ -913,6 +1022,11 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1024,
     height: 768,
+    minWidth: 900,
+    minHeight: 650,
+    title: 'TurboWhats',
+    icon: path.join(__dirname, 'assets', 'turbowhats-icon.png'),
+    backgroundColor: '#08111f',
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -975,7 +1089,7 @@ if (!gotTheLock) {
 
 app.whenReady().then(() => {
   if (process.platform === 'win32') {
-    app.setAppUserModelId('com.cchatbot.app');
+    app.setAppUserModelId('com.turbowhats.app');
   }
   securePersistedConfig();
   createWindow();
@@ -1027,9 +1141,6 @@ ipcMain.handle('config:write', async (_event, newConfig) => {
         queue.messages = [];
       }
       messageQueue.clear();
-    }
-    if ((previousConfig.defaultMessagesEnabled !== false) !== normalizedConfig.defaultMessagesEnabled) {
-      lastInboundAtByUser.clear();
     }
     return { ok: true };
   } catch (err) {
@@ -1124,7 +1235,7 @@ async function logoutAndClearWhatsAppSession() {
   connectionState.attempting = false;
   conversationByUser.clear();
   messageQueue.clear();
-  lastInboundAtByUser.clear();
+  clearFirstMessageState();
   processedMessageIds.clear();
   processingMessageIds.clear();
 }
@@ -1188,8 +1299,22 @@ function normalizePhone(value) {
   let digits = String(value || '').replace(/\D/g, '');
   if (digits.startsWith('00')) digits = digits.slice(2);
   if (digits.length === 10 || digits.length === 11) digits = `55${digits}`;
-  if (digits.length < 12 || digits.length > 15) return null;
+  if (digits.length < 8 || digits.length > 15) return null;
   return digits;
+}
+
+function formatContactPhone(contact) {
+  const countryCode = String(contact?.countryCode || '').replace(/\D/g, '');
+  const areaCode = String(contact?.areaCode || '').replace(/\D/g, '');
+  const localNumber = String(contact?.localNumber || '').replace(/\D/g, '');
+  if (countryCode && areaCode && localNumber) {
+    const formattedNumber = localNumber.length > 4
+      ? `${localNumber.slice(0, -4)}-${localNumber.slice(-4)}`
+      : localNumber;
+    return `+${countryCode} (${areaCode}) ${formattedNumber}`;
+  }
+  const phone = normalizePhone(contact?.phone);
+  return phone ? `+${phone}` : '';
 }
 
 function applyMessageTags(template, contact) {
@@ -1199,7 +1324,7 @@ function applyMessageTags(template, contact) {
   const values = {
     nome: fullName,
     primeironome: firstName,
-    telefone: String(contact?.phone || ''),
+    telefone: formatContactPhone(contact),
     data: now.toLocaleDateString('pt-BR'),
     hora: now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
   };

@@ -8,10 +8,12 @@ app-data/
 dist/
 out/
 build/
+.build-cache/
 coverage/
 *.exe
 *.msi
 *.dmg
+*.blockmap
 .DS_Store
 Thumbs.db
 .env

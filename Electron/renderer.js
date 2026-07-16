@@ -175,44 +175,74 @@ function updateConnectionLoader(data = {}) {
   const progress = Math.max(0, Math.min(100, Number(data.progress ?? 5)));
   const phase = data.phase || 'starting';
   const loader = document.getElementById('connectionLoader');
+  const eyebrow = document.getElementById('connectionLoaderEyebrow');
   const title = document.getElementById('connectionLoaderTitle');
   const text = document.getElementById('connectionLoaderText');
+  const hint = document.getElementById('connectionLoaderHint');
   const percent = document.getElementById('connectionLoaderPercent');
   const bar = document.getElementById('connectionProgressBar');
-  if (!loader || !title || !text || !percent || !bar) return;
+  if (!loader || !eyebrow || !title || !text || !hint || !percent || !bar) return;
 
   const copy = {
-    starting: ['Preparando conexão segura...', 'Aguarde enquanto iniciamos os serviços necessários.'],
-    qr: ['Aguardando leitura do QR Code', 'Escaneie o código acima usando o WhatsApp do seu celular.'],
-    authenticated: ['QR Code confirmado!', 'Autenticando sua conta e protegendo a sessão local...'],
-    sync: ['Sincronizando com o WhatsApp', data.message || 'Carregando conversas e preparando o atendimento...'],
-    ready: ['Conexão realizada com sucesso!', 'Seu WhatsApp está pronto para receber e enviar mensagens.'],
-    reset: ['Preparando um novo QR Code', 'Encerrando a sessão anterior com segurança...']
+    starting: {
+      eyebrow: 'Iniciando TurboWhats',
+      title: 'Abrindo conexão segura',
+      description: 'Estamos preparando os serviços usados para conectar seu WhatsApp.',
+      hint: 'Mantenha o TurboWhats aberto durante esta preparação.'
+    },
+    qr: {
+      eyebrow: 'Aguardando seu celular',
+      title: 'Leia o QR Code para continuar',
+      description: 'No WhatsApp, abra Aparelhos conectados e escolha Conectar aparelho.',
+      hint: 'Depois da leitura, o QR Code desaparecerá e a autenticação começará automaticamente.'
+    },
+    authenticated: {
+      eyebrow: 'Celular autorizado',
+      title: 'QR Code confirmado',
+      description: 'Seu celular autorizou o acesso. Agora estamos protegendo a sessão neste computador.',
+      hint: 'Não feche o TurboWhats: a sincronização das conversas começará em seguida.'
+    },
+    sync: {
+      eyebrow: 'Preparando seu atendimento',
+      title: 'Organizando conversas e mensagens',
+      description: data.message || 'Sincronizando os dados necessários para iniciar o atendimento.',
+      hint: 'Na primeira conexão, esta etapa pode levar alguns minutos. O tempo depende da quantidade de conversas.'
+    },
+    ready: {
+      eyebrow: 'TurboWhats online',
+      title: 'Tudo pronto para atender',
+      description: 'Seu WhatsApp foi conectado e o acompanhamento de mensagens está ativo.',
+      hint: 'Você já pode configurar respostas, IA e disparos nas abas ao lado.'
+    },
+    reset: {
+      eyebrow: 'Reiniciando conexão',
+      title: 'Preparando um novo QR Code',
+      description: 'Estamos encerrando a sessão anterior com segurança.',
+      hint: 'O novo QR Code será exibido assim que estiver disponível.'
+    }
   };
-  const [heading, description] = copy[phase] || copy.starting;
-  title.textContent = heading;
-  text.textContent = description;
+  const currentCopy = copy[phase] || copy.starting;
+  eyebrow.textContent = currentCopy.eyebrow;
+  title.textContent = currentCopy.title;
+  text.textContent = currentCopy.description;
+  hint.querySelector('p').textContent = currentCopy.hint;
   percent.textContent = `${Math.round(progress)}%`;
   bar.style.width = `${progress}%`;
+  loader.dataset.phase = phase;
   loader.classList.toggle('success', phase === 'ready');
 
-  const steps = [
-    { id: 'connectionStepQr', threshold: 10 },
-    { id: 'connectionStepAuth', threshold: 45 },
-    { id: 'connectionStepSync', threshold: 65 },
-    { id: 'connectionStepReady', threshold: 100 }
-  ];
-  let activeAssigned = false;
+  const steps = ['connectionStepQr', 'connectionStepAuth', 'connectionStepSync', 'connectionStepReady'];
+  const phaseIndex = { starting: 0, reset: 0, qr: 0, authenticated: 1, sync: 2, ready: 3 };
+  const currentIndex = phaseIndex[phase] ?? 0;
   steps.forEach((step, index) => {
-    const element = document.getElementById(step.id);
-    const nextThreshold = steps[index + 1]?.threshold ?? 101;
-    const done = progress >= nextThreshold || progress === 100;
-    const active = !done && progress >= step.threshold && !activeAssigned;
+    const element = document.getElementById(step);
+    if (!element) return;
+    const done = phase === 'ready' || index < currentIndex;
+    const active = phase !== 'ready' && index === currentIndex;
     element.classList.toggle('done', done);
     element.classList.toggle('active', active);
     const marker = element.querySelector('span');
     marker.textContent = done ? '✓' : String(index + 1);
-    if (active) activeAssigned = true;
   });
 }
 
@@ -235,7 +265,7 @@ window.electronAPI.onWaQr((qrUrl) => {
       imgDiv.replaceChildren();
       const img = document.createElement('img');
       img.src = qrUrl;
-      img.alt = 'QR Code';
+      img.alt = 'QR Code do TurboWhats';
       img.className = 'qr-img';
       imgDiv.appendChild(img);
     }
@@ -258,7 +288,7 @@ window.electronAPI.onWaStatus((data) => {
   if (data.connected) {
     waIsConnected = true;
     clearTimeout(connectionReadyTimer);
-    status.innerHTML = '<span class="status-dot connected">●</span> <span id="waStatusText">Conectado ✅</span>';
+    status.innerHTML = '<span class="status-dot connected">●</span> <span id="waStatusText">TurboWhats online</span>';
     errorArea.style.display = 'none';
     if (btnReconectar) btnReconectar.style.display = 'none';
     if (connectedArea) connectedArea.style.display = 'none';
@@ -268,7 +298,7 @@ window.electronAPI.onWaStatus((data) => {
     connectionReadyTimer = setTimeout(() => {
       if (loadingArea) loadingArea.style.display = 'none';
       if (connectedArea) connectedArea.style.display = '';
-    }, 1400);
+    }, 2200);
   } else if (data.error) {
     waIsConnected = false;
     clearTimeout(connectionReadyTimer);
@@ -697,12 +727,67 @@ document.getElementById('defaultNoReplyForm').addEventListener('submit', async f
 let bulkSelectedImagePath = null;
 let bulkRunning = false;
 const bulkSelectedIds = new Set();
+const BULK_COUNTRY_CODES = ['591', '593', '506', '503', '502', '509', '504', '505', '507', '595', '598', '351', '55', '54', '56', '57', '53', '52', '51', '58', '34', '44', '39', '49', '33', '1'];
+
+function bulkDigits(value) {
+  return String(value || '').replace(/\D/g, '');
+}
 
 function normalizeBulkPhone(value) {
-  let digits = String(value || '').replace(/\D/g, '');
+  let digits = bulkDigits(value);
   if (digits.startsWith('00')) digits = digits.slice(2);
   if (digits.length === 10 || digits.length === 11) digits = `55${digits}`;
-  return digits.length >= 12 && digits.length <= 15 ? digits : null;
+  return digits.length >= 8 && digits.length <= 15 ? digits : null;
+}
+
+function buildBulkPhone(countryCode, areaCode, localNumber) {
+  const country = bulkDigits(countryCode);
+  const area = bulkDigits(areaCode);
+  const number = bulkDigits(localNumber);
+  const phone = `${country}${area}${number}`;
+  if (!country || country.length > 3 || !area || area.length > 4 || number.length < 4 || number.length > 12) return null;
+  return phone.length >= 8 && phone.length <= 15 ? phone : null;
+}
+
+function getBulkPhoneParts(contact = {}) {
+  const storedCountry = bulkDigits(contact.countryCode);
+  const storedArea = bulkDigits(contact.areaCode);
+  const storedNumber = bulkDigits(contact.localNumber);
+  if (buildBulkPhone(storedCountry, storedArea, storedNumber)) {
+    return { countryCode: storedCountry, areaCode: storedArea, localNumber: storedNumber };
+  }
+
+  const phone = normalizeBulkPhone(contact.phone) || '';
+  const countryCode = BULK_COUNTRY_CODES.find(code => phone.startsWith(code)) || '55';
+  const nationalNumber = phone.startsWith(countryCode) ? phone.slice(countryCode.length) : phone;
+  const preferredAreaLength = countryCode === '1' ? 3 : 2;
+  const areaLength = nationalNumber.length > preferredAreaLength + 4 ? preferredAreaLength : Math.max(1, nationalNumber.length - 4);
+  return {
+    countryCode,
+    areaCode: nationalNumber.slice(0, areaLength),
+    localNumber: nationalNumber.slice(areaLength)
+  };
+}
+
+function formatBulkPhone(contact = {}) {
+  const parts = getBulkPhoneParts(contact);
+  const number = parts.localNumber;
+  const formattedNumber = number.length > 4 ? `${number.slice(0, -4)}-${number.slice(-4)}` : number;
+  return `+${parts.countryCode}${parts.areaCode ? ` (${parts.areaCode})` : ''}${formattedNumber ? ` ${formattedNumber}` : ''}`;
+}
+
+function updateBulkPhonePreview() {
+  const preview = document.getElementById('bulkPhonePreview');
+  if (!preview) return;
+  const countryCode = bulkDigits(document.getElementById('bulkContactCountry').value);
+  const areaCode = bulkDigits(document.getElementById('bulkContactAreaCode').value);
+  const localNumber = bulkDigits(document.getElementById('bulkContactNumber').value);
+  const phone = buildBulkPhone(countryCode, areaCode, localNumber);
+  const formatted = formatBulkPhone({ countryCode, areaCode, localNumber, phone });
+  preview.replaceChildren(document.createTextNode(phone ? 'Número completo: ' : 'Preencha DDD e número: '));
+  const strong = document.createElement('strong');
+  strong.textContent = formatted;
+  preview.appendChild(strong);
 }
 
 function applyBulkPreviewTags(template, contact) {
@@ -712,7 +797,7 @@ function applyBulkPreviewTags(template, contact) {
   const values = {
     nome: fullName,
     primeironome: firstName,
-    telefone: String(contact?.phone || ''),
+    telefone: formatBulkPhone(contact),
     data: now.toLocaleDateString('pt-BR'),
     hora: now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
   };
@@ -753,7 +838,7 @@ function setBulkRunning(running) {
   bulkRunning = running;
   document.getElementById('bulkStart').disabled = running;
   document.getElementById('bulkCancel').style.display = running ? '' : 'none';
-  document.getElementById('bulkContactForm').querySelectorAll('input, button').forEach(element => {
+  document.getElementById('bulkContactForm').querySelectorAll('input, select, button').forEach(element => {
     element.disabled = running;
   });
   document.getElementById('bulkImportContacts').disabled = running;
@@ -794,7 +879,7 @@ async function renderBulkContacts() {
     const name = document.createElement('strong');
     name.textContent = contact.name || 'Sem nome';
     const phone = document.createElement('span');
-    phone.textContent = contact.phone;
+    phone.textContent = formatBulkPhone(contact);
     info.append(name, phone);
 
     const actions = document.createElement('div');
@@ -833,10 +918,14 @@ function updateBulkSelectionState(contacts) {
 }
 
 function editBulkContact(contact) {
+  const phoneParts = getBulkPhoneParts(contact);
   document.getElementById('bulkContactId').value = contact.id;
   document.getElementById('bulkContactName').value = contact.name || '';
-  document.getElementById('bulkContactPhone').value = contact.phone;
+  document.getElementById('bulkContactCountry').value = phoneParts.countryCode;
+  document.getElementById('bulkContactAreaCode').value = phoneParts.areaCode;
+  document.getElementById('bulkContactNumber').value = phoneParts.localNumber;
   document.getElementById('bulkSaveContact').textContent = 'Salvar';
+  updateBulkPhonePreview();
 }
 
 async function deleteBulkContact(id) {
@@ -850,30 +939,43 @@ document.getElementById('bulkContactForm').addEventListener('submit', async even
   event.preventDefault();
   const id = document.getElementById('bulkContactId').value;
   const name = document.getElementById('bulkContactName').value.trim();
-  const phone = normalizeBulkPhone(document.getElementById('bulkContactPhone').value);
+  const countryCode = bulkDigits(document.getElementById('bulkContactCountry').value);
+  const areaCode = bulkDigits(document.getElementById('bulkContactAreaCode').value);
+  const localNumber = bulkDigits(document.getElementById('bulkContactNumber').value);
+  const phone = buildBulkPhone(countryCode, areaCode, localNumber);
   if (!phone) {
-    alert('Informe um número válido com DDD. Exemplo: 5511999999999.');
+    alert('Confira o país, o DDD e o número. Exemplo: Brasil (+55), DDD 21 e número 981682922.');
     return;
   }
 
   const contacts = await loadBulkContacts();
-  const duplicate = contacts.find(contact => contact.phone === phone && contact.id !== id);
+  const duplicate = contacts.find(contact => normalizeBulkPhone(contact.phone) === phone && contact.id !== id);
   if (duplicate) {
     alert('Este número já está cadastrado.');
     return;
   }
+  const savedContact = { id: id || crypto.randomUUID(), name, countryCode, areaCode, localNumber, phone };
   if (id) {
     const index = contacts.findIndex(contact => contact.id === id);
-    if (index >= 0) contacts[index] = { id, name, phone };
+    if (index >= 0) contacts[index] = savedContact;
   } else {
-    contacts.push({ id: crypto.randomUUID(), name, phone });
+    contacts.push(savedContact);
   }
   await saveBulkContacts(contacts);
   event.target.reset();
   document.getElementById('bulkContactId').value = '';
   document.getElementById('bulkSaveContact').textContent = 'Adicionar';
+  updateBulkPhonePreview();
   await renderBulkContacts();
 });
+
+for (const fieldId of ['bulkContactAreaCode', 'bulkContactNumber']) {
+  document.getElementById(fieldId).addEventListener('input', event => {
+    event.target.value = bulkDigits(event.target.value);
+    updateBulkPhonePreview();
+  });
+}
+document.getElementById('bulkContactCountry').addEventListener('change', updateBulkPhonePreview);
 
 document.getElementById('bulkSelectAll').addEventListener('change', async event => {
   const contacts = await loadBulkContacts();
@@ -891,12 +993,13 @@ document.getElementById('bulkImportContacts').addEventListener('click', async ()
   if (!result.contacts.length) return;
 
   const contacts = await loadBulkContacts();
-  const phones = new Set(contacts.map(contact => contact.phone));
+  const phones = new Set(contacts.map(contact => normalizeBulkPhone(contact.phone)).filter(Boolean));
   let added = 0;
   for (const imported of result.contacts) {
     const phone = normalizeBulkPhone(imported.phone);
     if (!phone || phones.has(phone)) continue;
-    contacts.push({ id: crypto.randomUUID(), name: imported.name || '', phone });
+    const phoneParts = getBulkPhoneParts({ phone });
+    contacts.push({ id: crypto.randomUUID(), name: imported.name || '', phone, ...phoneParts });
     phones.add(phone);
     added++;
   }

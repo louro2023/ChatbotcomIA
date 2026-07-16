@@ -2,19 +2,20 @@
 <html lang="pt-br">
 <head>
   <meta charset="UTF-8">
-  <title>Chatbot WhatsApp - Painel de Controle</title>
+  <title>TurboWhats — Atendimento inteligente</title>
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'none';">
   <link rel="stylesheet" href="style.css">
+  <link rel="icon" type="image/png" href="assets/turbowhats-icon.png">
 </head>
 <body>
   <div class="container">
     <!-- Sidebar Navigation -->
     <aside class="sidebar">
       <div class="logo">
-        <div class="logo-icon">💬</div>
+        <div class="logo-icon"><img src="assets/turbowhats-icon.png" alt="TurboWhats"></div>
         <div class="logo-text">
-          <h1>ChatBot</h1>
-          <p>WhatsApp Automation</p>
+          <h1>TurboWhats</h1>
+          <p>Atendimento inteligente</p>
         </div>
       </div>
 
@@ -44,8 +45,14 @@
       <!-- Header -->
       <header class="app-header">
         <div class="header-content">
-          <h1>Painel de Controle</h1>
-          <p class="subtitle">Gerencie seu chatbot WhatsApp</p>
+          <div class="header-brand-line">
+            <img src="assets/turbowhats-icon.png" alt="" aria-hidden="true">
+            <div>
+              <span class="brand-eyebrow">TurboWhats</span>
+              <h1>Painel de Atendimento</h1>
+            </div>
+          </div>
+          <p class="subtitle">Automação, inteligência e velocidade para seu WhatsApp</p>
         </div>
         <div class="header-icons">
           <div id="waStatus" class="status-indicator">
@@ -60,7 +67,10 @@
         <div class="status-container">
           <div class="status-card">
             <div class="card-header">
-              <h2>Conexão WhatsApp</h2>
+              <div>
+                <span class="section-eyebrow">Central de conexão</span>
+                <h2>Conecte o TurboWhats ao WhatsApp</h2>
+              </div>
               <div class="connection-actions">
                 <button id="btnReconectar" class="btn btn-small btn-secondary" style="display:none;">
                   <span class="icon">🔄</span> Reconectar
@@ -80,7 +90,7 @@
               <div id="connectionLoader" class="connection-loader">
                 <div class="connection-loader-top">
                   <div id="connectionLoaderIcon" class="connection-loader-icon">
-                    <span class="loader-phone">📱</span>
+                    <img class="loader-brand-image" src="assets/turbowhats-icon.png" alt="TurboWhats conectando">
                     <span class="loader-orbit"></span>
                   </div>
                   <div class="connection-loader-copy">
@@ -93,6 +103,10 @@
                 <div class="connection-progress-track">
                   <div id="connectionProgressBar" class="connection-progress-bar"></div>
                   <div class="connection-progress-shine"></div>
+                </div>
+                <div id="connectionLoaderHint" class="connection-loader-hint">
+                  <span>💡</span>
+                  <p>Na primeira conexão, o WhatsApp pode levar alguns minutos para organizar suas conversas.</p>
                 </div>
                 <div class="connection-steps">
                   <div id="connectionStepQr" class="connection-step active">
@@ -112,18 +126,25 @@
             </div>
 
             <div id="qrcodeContainer" class="qrcode-box" style="display:none;">
-              <div class="qrcode-header">Escaneie para Conectar</div>
+              <div class="qrcode-brand">
+                <img src="assets/turbowhats-icon.png" alt="TurboWhats">
+                <div><strong>Conecte o TurboWhats</strong><span>Escaneie o QR Code pelo seu celular</span></div>
+              </div>
               <div id="qrcodeImg" class="qrcode"></div>
               <div class="qrcode-info">
-                <p>📱 Use seu celular para escanear este QR Code</p>
-                <p class="small">A conexão será mantida para próximas inicializações</p>
+                <p><strong>WhatsApp → Aparelhos conectados → Conectar aparelho</strong></p>
+                <p class="small">Depois da leitura, mantenha esta tela aberta enquanto o TurboWhats autentica e sincroniza suas conversas.</p>
               </div>
             </div>
 
             <div id="connectedArea" class="connected-box" style="display:none;">
-              <div class="success-icon">✅</div>
-              <h3>Conectado com Sucesso!</h3>
-              <p>Seu WhatsApp está pronto para receber mensagens</p>
+              <div class="connected-brand-visual">
+                <img src="assets/turbowhats-icon.png" alt="TurboWhats conectado">
+                <span class="success-icon">✓</span>
+              </div>
+              <span class="connected-eyebrow">TurboWhats online</span>
+              <h3>Conexão concluída!</h3>
+              <p>Seu atendimento está pronto para acompanhar mensagens não lidas.</p>
               <div class="stats">
                 <div class="stat-item">
                   <span class="stat-label">Status</span>
@@ -140,7 +161,7 @@
         <div class="section-header messages-section-header">
           <div>
             <h2>Respostas Automáticas</h2>
-            <p>Configure a primeira mensagem, as regras e a resposta usada quando nenhuma regra corresponder</p>
+            <p>Defina como o TurboWhats atende seus contatos quando a IA estiver desativada</p>
           </div>
           <label class="ai-toggle-switch messages-toggle" title="Ativar ou desativar as mensagens padrão">
             <input type="checkbox" id="defaultMessagesEnabled" checked>
@@ -158,16 +179,16 @@
         </div>
 
         <div class="automation-flow" aria-label="Ordem das respostas automáticas com a IA desativada">
-          <div><span>1</span><strong>Primeira interação</strong><small>Envia a saudação após 30 minutos sem novas mensagens do contato.</small></div>
+          <div><span>1</span><strong>Primeira resposta do bot</strong><small>Envia a saudação uma única vez, quando o bot responde pela primeira vez ao contato.</small></div>
           <div><span>2</span><strong>Procurar uma regra</strong><small>Compara a mensagem recebida com as palavras-chave cadastradas.</small></div>
           <div><span>3</span><strong>Usar o fallback</strong><small>Se nenhuma regra combinar, envia a mensagem padrão sem resposta.</small></div>
         </div>
 
         <div class="automation-message-grid">
           <div class="card automation-step-card">
-            <div class="automation-card-heading"><span>1</span><div><h3 class="card-title">Primeira Mensagem</h3><p>Saudação enviada antes da IA ou das regras assumirem o atendimento.</p></div></div>
+            <div class="automation-card-heading"><span>1</span><div><h3 class="card-title">Primeira Mensagem</h3><p>Primeira resposta automática enviada ao contato, antes da IA ou das regras assumirem.</p></div></div>
             <form id="defaultMessageForm" class="form-stack">
-              <label for="defaultMessage">Mensagem enviada na primeira interação</label>
+              <label for="defaultMessage">Primeira resposta enviada pelo bot ao contato</label>
               <textarea id="defaultMessage" placeholder="Olá! Como posso ajudá-lo?" class="textarea" required></textarea>
               <button type="submit" id="saveDefaultMessageBtn" class="btn btn-primary">Salvar Mensagem</button>
               <div id="defaultMessageSaveStatus" class="message-save-feedback" role="status" aria-live="polite"></div>
@@ -216,7 +237,7 @@
       <section id="bulk-section" class="section">
         <div class="section-header">
           <h2>Disparos de Mensagens</h2>
-          <p>Gerencie contatos e envie texto, imagem ou ambos pela conexão atual</p>
+          <p>Organize contatos e acompanhe campanhas enviadas pelo TurboWhats</p>
         </div>
 
         <div class="bulk-layout">
@@ -227,15 +248,55 @@
             </div>
             <form id="bulkContactForm" class="form-grid bulk-contact-form">
               <input type="hidden" id="bulkContactId">
-              <div class="form-group">
+              <div class="form-group bulk-contact-name">
                 <label for="bulkContactName">Nome</label>
                 <input type="text" id="bulkContactName" placeholder="Nome do contato">
               </div>
-              <div class="form-group">
-                <label for="bulkContactPhone">WhatsApp</label>
-                <input type="text" id="bulkContactPhone" placeholder="5511999999999" required>
+              <div class="bulk-phone-fields">
+                <div class="form-group">
+                  <label for="bulkContactCountry">País</label>
+                  <select id="bulkContactCountry" required>
+                    <option value="55" selected>🇧🇷 Brasil (+55)</option>
+                    <option value="54">🇦🇷 Argentina (+54)</option>
+                    <option value="591">🇧🇴 Bolívia (+591)</option>
+                    <option value="56">🇨🇱 Chile (+56)</option>
+                    <option value="57">🇨🇴 Colômbia (+57)</option>
+                    <option value="506">🇨🇷 Costa Rica (+506)</option>
+                    <option value="53">🇨🇺 Cuba (+53)</option>
+                    <option value="593">🇪🇨 Equador (+593)</option>
+                    <option value="503">🇸🇻 El Salvador (+503)</option>
+                    <option value="502">🇬🇹 Guatemala (+502)</option>
+                    <option value="509">🇭🇹 Haiti (+509)</option>
+                    <option value="504">🇭🇳 Honduras (+504)</option>
+                    <option value="52">🇲🇽 México (+52)</option>
+                    <option value="505">🇳🇮 Nicarágua (+505)</option>
+                    <option value="507">🇵🇦 Panamá (+507)</option>
+                    <option value="595">🇵🇾 Paraguai (+595)</option>
+                    <option value="51">🇵🇪 Peru (+51)</option>
+                    <option value="1">🇺🇸 EUA/Canadá (+1)</option>
+                    <option value="598">🇺🇾 Uruguai (+598)</option>
+                    <option value="58">🇻🇪 Venezuela (+58)</option>
+                    <option value="351">🇵🇹 Portugal (+351)</option>
+                    <option value="34">🇪🇸 Espanha (+34)</option>
+                    <option value="44">🇬🇧 Reino Unido (+44)</option>
+                    <option value="39">🇮🇹 Itália (+39)</option>
+                    <option value="49">🇩🇪 Alemanha (+49)</option>
+                    <option value="33">🇫🇷 França (+33)</option>
+                  </select>
+                </div>
+                <div class="form-group bulk-ddd-field">
+                  <label for="bulkContactAreaCode">DDD</label>
+                  <input type="text" id="bulkContactAreaCode" inputmode="numeric" maxlength="4" placeholder="21" required>
+                </div>
+                <div class="form-group">
+                  <label for="bulkContactNumber">Número</label>
+                  <input type="text" id="bulkContactNumber" inputmode="numeric" maxlength="12" placeholder="981682922" required>
+                </div>
               </div>
               <button type="submit" id="bulkSaveContact" class="btn btn-primary">Adicionar</button>
+              <div id="bulkPhonePreview" class="bulk-phone-preview" aria-live="polite">
+                Número completo: <strong>+55</strong>
+              </div>
             </form>
 
             <div class="bulk-toolbar">
@@ -307,8 +368,8 @@
       <!-- Help Section -->
       <section id="help-section" class="section">
         <div class="section-header">
-          <h2>Como usar o sistema</h2>
-          <p>Guia rápido do chatbot, dos disparos e das mensagens personalizadas</p>
+          <h2>Como usar o TurboWhats</h2>
+          <p>Guia rápido das respostas, da IA, dos disparos e da conexão com o WhatsApp</p>
         </div>
 
         <div class="help-grid">
@@ -328,7 +389,7 @@
             <h3>Como usar Mensagens e Regras sem a IA</h3>
             <p>Com a IA desativada, o atendimento funciona como um menu automático previsível. O sistema sempre segue esta ordem:</p>
             <div class="help-automation-flow">
-              <div><span>1</span><strong>Primeira Mensagem</strong><p>Se for a primeira interação ou o contato estiver há pelo menos 30 minutos sem enviar mensagens, o sistema envia somente a saudação inicial.</p></div>
+              <div><span>1</span><strong>Primeira Mensagem</strong><p>Quando o bot ainda nunca respondeu ao contato, envia somente a saudação inicial e registra esse primeiro atendimento.</p></div>
               <div><span>2</span><strong>Regras</strong><p>Na próxima mensagem, procura uma palavra-chave exatamente igual ao texto recebido, sem diferenciar letras maiúsculas e minúsculas.</p></div>
               <div><span>3</span><strong>Mensagem padrão</strong><p>Quando nenhuma regra corresponder, envia a resposta “sem regra correspondente” para orientar o contato.</p></div>
             </div>
@@ -363,7 +424,7 @@
                 <h4>Fluxo do atendimento</h4>
                 <ol>
                   <li>O sistema identifica uma conversa privada com notificação de mensagem não lida ou marcada como não lida.</li>
-                  <li>Na primeira interação, envia a <strong>Primeira Mensagem</strong> configurada na aba Mensagens.</li>
+                  <li>Na primeira resposta automática para o contato, envia a <strong>Primeira Mensagem</strong> configurada na aba Respostas.</li>
                   <li>Nas mensagens seguintes, o Gemini responde automaticamente até a IA ser desativada.</li>
                 </ol>
               </div>
@@ -394,7 +455,8 @@
 
           <article class="card help-card">
             <h3>3. Contatos e disparos</h3>
-            <p>Em <strong>Disparos</strong>, cadastre contatos manualmente ou importe um arquivo XLSX/CSV com uma coluna <strong>Nome</strong> e outra chamada <strong>WhatsApp</strong>, <strong>Telefone</strong>, <strong>Celular</strong> ou <strong>Número</strong>.</p>
+            <p>Em <strong>Disparos</strong>, escolha o país e informe o DDD e o número em campos separados. Exemplo: <strong>Brasil (+55)</strong>, DDD <strong>21</strong> e número <strong>981682922</strong>. Confira a prévia antes de salvar.</p>
+            <p>Também é possível importar um arquivo XLSX/CSV com uma coluna <strong>Nome</strong> e outra chamada <strong>WhatsApp</strong>, <strong>Telefone</strong>, <strong>Celular</strong> ou <strong>Número</strong>. Na importação, mantenha o código do país no telefone.</p>
             <p>Selecione os destinatários, escreva a mensagem, anexe uma imagem se desejar, defina o intervalo e inicie a campanha.</p>
           </article>
 
@@ -574,8 +636,8 @@
   <!-- Footer -->
   <footer class="app-footer">
     <div class="footer-content">
-      <p>Desenvolvido por <strong>Henrique Louro</strong></p>
-      <p>© 2025 - Todos os direitos reservados</p>
+      <p><strong>TurboWhats</strong> · Atendimento inteligente para WhatsApp</p>
+      <p>Desenvolvido por Henrique Louro · © 2026</p>
     </div>
   </footer>
 

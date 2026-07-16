@@ -4,6 +4,10 @@
   --primary-dark: #1e40af;
   --primary-light: #dbeafe;
   --secondary: #8b5cf6;
+  --brand-cyan: #67d7dc;
+  --brand-blue: #3568cf;
+  --brand-pink: #ff929d;
+  --brand-soft: #a8caff;
   --success: #10b981;
   --danger: #ef4444;
   --warning: #f59e0b;
@@ -47,8 +51,8 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
   background:
-    radial-gradient(circle at 72% -10%, rgba(59, 130, 246, 0.11), transparent 34%),
-    radial-gradient(circle at 15% 110%, rgba(139, 92, 246, 0.08), transparent 32%),
+    radial-gradient(circle at 72% -10%, rgba(103, 215, 220, 0.14), transparent 34%),
+    radial-gradient(circle at 15% 110%, rgba(255, 146, 157, 0.08), transparent 32%),
     var(--bg-primary);
   color: var(--text-primary);
   line-height: 1.6;
@@ -80,23 +84,38 @@ body {
   gap: 12px;
   margin-bottom: 26px;
   padding: 14px;
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(139, 92, 246, 0.09) 100%);
+  background: linear-gradient(135deg, rgba(103, 215, 220, 0.16) 0%, rgba(53, 104, 207, 0.1) 65%, rgba(255, 146, 157, 0.07) 100%);
   border-radius: var(--radius-lg);
   border: 1px solid rgba(96, 165, 250, 0.17);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .logo-icon {
-  font-size: 32px;
+  width: 52px;
+  height: 52px;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+  border-radius: 16px;
+  background: rgba(8, 17, 31, 0.46);
+  border: 1px solid rgba(103, 215, 220, 0.2);
+}
+
+.logo-icon img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  filter: drop-shadow(0 7px 12px rgba(53, 104, 207, 0.3));
 }
 
 .logo-text h1 {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--text-primary);
+  font-size: 19px;
+  font-weight: 800;
+  background: linear-gradient(100deg, #dffcff, var(--brand-cyan) 46%, var(--brand-soft));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
   margin: 0;
 }
 
@@ -190,11 +209,35 @@ body {
   backdrop-filter: blur(18px);
 }
 
+.header-brand-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-brand-line img {
+  width: 46px;
+  height: 46px;
+  object-fit: contain;
+  filter: drop-shadow(0 7px 12px rgba(53, 104, 207, 0.24));
+}
+
+.brand-eyebrow,
+.section-eyebrow,
+.connected-eyebrow {
+  display: block;
+  color: var(--brand-cyan);
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
 .header-content h1 {
   font-size: 25px;
   font-weight: 700;
-  margin: 0 0 4px 0;
-  background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+  margin: -2px 0 0;
+  background: linear-gradient(110deg, #f8fbff 0%, var(--brand-soft) 62%, var(--brand-cyan) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -203,7 +246,7 @@ body {
 .subtitle {
   color: var(--text-muted);
   font-size: 14px;
-  margin: 0;
+  margin: 3px 0 0 58px;
 }
 
 .header-icons {
@@ -324,6 +367,27 @@ body {
   border: 2px solid var(--border-light);
   border-radius: var(--radius-lg);
   padding: 28px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.status-card::after {
+  content: '';
+  position: absolute;
+  width: 250px;
+  height: 250px;
+  right: -65px;
+  bottom: -90px;
+  background: url('assets/turbowhats-icon.png') center / contain no-repeat;
+  opacity: 0.035;
+  pointer-events: none;
+  transform: rotate(-8deg);
+}
+
+.status-card > * {
+  position: relative;
+  z-index: 1;
 }
 
 /* ===== Status Indicators ===== */
@@ -360,14 +424,43 @@ body {
 
 /* ===== QR Code ===== */
 .qrcode-box {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(139, 92, 246, 0.05) 100%);
-  border: 2px dashed var(--primary);
+  background: radial-gradient(circle at 50% 0%, rgba(103, 215, 220, 0.14), transparent 42%), rgba(8, 17, 31, 0.52);
+  border: 1px solid rgba(103, 215, 220, 0.32);
   border-radius: var(--radius-lg);
   padding: 32px;
   text-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
+}
+
+.qrcode-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+}
+
+.qrcode-brand img {
+  width: 58px;
+  height: 58px;
+  object-fit: contain;
+  filter: drop-shadow(0 7px 12px rgba(53, 104, 207, 0.27));
+}
+
+.qrcode-brand strong,
+.qrcode-brand span {
+  display: block;
+}
+
+.qrcode-brand strong {
+  color: var(--text-primary);
+  font-size: 17px;
+}
+
+.qrcode-brand span {
+  color: var(--text-muted);
+  font-size: 12px;
 }
 
 .qrcode-header {
@@ -390,7 +483,7 @@ body {
   border-radius: var(--radius-lg);
   background: white;
   padding: 8px;
-  box-shadow: 0 8px 24px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 14px 38px rgba(53, 104, 207, 0.32), 0 0 0 7px rgba(255, 255, 255, 0.05);
 }
 
 .qrcode-info p {
@@ -413,9 +506,34 @@ body {
   border-radius: var(--radius-lg);
 }
 
+.connected-brand-visual {
+  width: 104px;
+  height: 104px;
+  margin: 0 auto 10px;
+  position: relative;
+}
+
+.connected-brand-visual img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 12px 22px rgba(16, 185, 129, 0.2));
+}
+
 .success-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
+  width: 30px;
+  height: 30px;
+  position: absolute;
+  right: 1px;
+  bottom: 7px;
+  display: grid;
+  place-items: center;
+  color: white;
+  font-size: 17px;
+  font-weight: 900;
+  background: var(--success);
+  border: 3px solid #102033;
+  border-radius: 50%;
   animation: scaleIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
@@ -737,9 +855,11 @@ select:focus-visible {
   border: 1px solid rgba(59, 130, 246, 0.28);
 }
 
-.loader-phone {
-  font-size: 28px;
-  filter: drop-shadow(0 4px 10px rgba(59, 130, 246, 0.35));
+.loader-brand-image {
+  width: 58px;
+  height: 58px;
+  object-fit: contain;
+  filter: drop-shadow(0 5px 10px rgba(53, 104, 207, 0.34));
 }
 
 .loader-orbit {
@@ -808,6 +928,31 @@ select:focus-visible {
   background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.16), transparent);
   transform: translateX(-100%);
   animation: progress-shine 1.8s ease-in-out infinite;
+}
+
+.connection-loader-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 0 0 20px;
+  padding: 10px 12px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  background: rgba(103, 215, 220, 0.055);
+  border: 1px solid rgba(103, 215, 220, 0.11);
+  border-radius: var(--radius-md);
+}
+
+.connection-loader-hint p { margin: 0; }
+
+.connection-loader[data-phase='authenticated'] .connection-loader-icon {
+  background: rgba(103, 215, 220, 0.1);
+  border-color: rgba(103, 215, 220, 0.34);
+}
+
+.connection-loader[data-phase='sync'] .loader-orbit {
+  border-top-color: var(--brand-pink);
+  border-right-color: var(--brand-cyan);
 }
 
 .connection-steps {
@@ -957,9 +1102,40 @@ select:focus-visible {
 }
 
 .bulk-contact-form {
-  grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
   margin-bottom: 0;
+}
+
+.bulk-contact-name,
+.bulk-phone-preview {
+  grid-column: 1 / -1;
+}
+
+.bulk-phone-fields {
+  display: grid;
+  grid-template-columns: minmax(170px, 1.35fr) minmax(72px, 0.45fr) minmax(145px, 1fr);
+  gap: 12px;
+  min-width: 0;
+}
+
+.bulk-phone-fields .form-group {
+  min-width: 0;
+}
+
+.bulk-phone-preview {
+  padding: 9px 12px;
+  color: var(--text-muted);
+  font-size: 12px;
+  background: rgba(103, 215, 220, 0.055);
+  border: 1px solid rgba(103, 215, 220, 0.12);
+  border-radius: var(--radius-md);
+}
+
+.bulk-phone-preview strong {
+  color: var(--brand-cyan);
+  font-family: Consolas, monospace;
+  font-size: 13px;
 }
 
 #bulkSaveContact {
@@ -1304,6 +1480,10 @@ select:focus-visible {
     align-items: flex-start;
   }
 
+  .subtitle {
+    margin-left: 0;
+  }
+
   .form-grid {
     grid-template-columns: 1fr;
   }
@@ -1314,6 +1494,15 @@ select:focus-visible {
 
   .bulk-contact-form {
     grid-template-columns: 1fr;
+  }
+
+  .bulk-phone-fields {
+    grid-template-columns: 1fr 90px 1fr;
+  }
+
+  .bulk-contact-name,
+  .bulk-phone-preview {
+    grid-column: 1;
   }
 
   #bulkSaveContact {
