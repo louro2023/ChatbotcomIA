@@ -1,6 +1,6 @@
 {
   "name": "cchatbot",
-  "version": "1.0.3",
+  "version": "1.0.9",
   "description": "TurboWhats - atendimento inteligente para WhatsApp",
   "author": "Henrique Louro",
   "license": "MIT",
@@ -65,7 +65,8 @@
       "artifactName": "TurboWhats-Portable-${version}.${ext}"
     },
     "portable": {
-      "requestExecutionLevel": "user"
+      "requestExecutionLevel": "user",
+      "splashImage": ".build-cache/turbowhats-splash.bmp"
     }
   },
   "overrides": {

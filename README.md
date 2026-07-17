@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/louro2023/ChatbotcomIA/releases/tag/v1.0.3"><img src="https://img.shields.io/badge/versão-1.0.3-3568cf" alt="Versão 1.0.3"></a>
+  <img src="https://img.shields.io/badge/versão-1.0.9-3568cf" alt="Versão 1.0.9">
   <img src="https://img.shields.io/badge/plataforma-Windows%20x64-0078D4" alt="Windows x64">
   <img src="https://img.shields.io/badge/Electron-43-47848F" alt="Electron 43">
   <img src="https://img.shields.io/badge/IA-Google%20Gemini-8E75B2" alt="Google Gemini">
@@ -17,9 +17,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/louro2023/ChatbotcomIA/releases/download/v1.0.3/TurboWhats-Portable-1.0.3.exe"><strong>Baixar versão portátil</strong></a>
-  ·
-  <a href="https://github.com/louro2023/ChatbotcomIA/releases/tag/v1.0.3">Ver Release</a>
+  <a href="https://github.com/louro2023/ChatbotcomIA/releases"><strong>Ver versões portáteis</strong></a>
   ·
   <a href="https://github.com/louro2023/ChatbotcomIA/issues">Reportar problema</a>
 </p>
@@ -53,14 +51,15 @@ Os principais desafios tratados pelo projeto foram:
 
 ## A solução
 
-O TurboWhats combina cinco módulos em uma experiência única:
+O TurboWhats combina seis módulos em uma experiência única:
 
 | Módulo | O que entrega |
 | --- | --- |
 | **Conexão** | QR Code, autenticação, sincronização orientada, reconexão e sessão persistente |
 | **Respostas** | Primeira mensagem, regras exatas e fallback quando a IA está desligada |
 | **IA & Voz** | Gemini, contexto personalizado, histórico opcional e áudio com ElevenLabs |
-| **Disparos** | Cadastro, importação CSV/XLSX, tags, imagem, intervalo e progresso por contato |
+| **Disparos** | Cadastro, importação direta do WhatsApp ou CSV/XLSX, tags, imagem, intervalo e progresso por contato |
+| **Métricas** | Envios do dia, pausas, intervalos, falhas, respostas da IA e atividade por hora e minuto |
 | **Ajuda** | Orientações integradas sobre fluxos, chaves de API, limites e boas práticas |
 
 ## Destaques do produto
@@ -76,6 +75,10 @@ Além de ouvir novas mensagens em tempo real, o sistema revisa periodicamente co
 ### IA controlada pelo usuário
 
 A chave do Gemini é testada antes de ser salva. A IA possui ativação independente, contexto editável, histórico opcional e painel local de uso de tokens. O teste de conexão usa timeout ampliado e novas tentativas para lidar melhor com redes lentas.
+
+### Digitação simulada
+
+Quando ativada, a conversa exibe **digitando...** antes de cada resposta automática. O tempo é calculado pelo tamanho do texto, com limites mínimos e máximos para manter o atendimento natural sem atrasos excessivos. A opção vale para primeira mensagem, IA, regras e fallback, mas não interfere em campanhas de disparo.
 
 ### Campanhas com menos erros de telefone
 
@@ -181,6 +184,7 @@ flowchart LR
 - **`LocalAuth`:** preserva a sessão do WhatsApp entre inicializações.
 - **Scanner a cada 8 segundos:** recupera mensagens com notificação que não chegaram pelo evento em tempo real.
 - **Fila de 2 segundos:** agrupa mensagens consecutivas antes de consultar a IA.
+- **Digitação proporcional:** calcula entre 0,9 e 6 segundos conforme o tamanho da resposta.
 - **Gemini com timeout de 90 segundos:** reduz falsos erros em conexões lentas.
 - **Até três tentativas de IA:** repete falhas temporárias com espera progressiva.
 - **Configuração local protegida:** usa `safeStorage` para chaves quando a criptografia do Windows está disponível.
@@ -226,9 +230,13 @@ Boas práticas para operação:
 
 ### Versão portátil
 
-Baixe o arquivo na página de Releases:
+O build local mais recente gera:
 
-**[TurboWhats-Portable-1.0.3.exe](https://github.com/louro2023/ChatbotcomIA/releases/download/v1.0.3/TurboWhats-Portable-1.0.3.exe)**
+```text
+dist\TurboWhats-Portable-1.0.9.exe
+```
+
+As versões publicadas ficam na página de [Releases](https://github.com/louro2023/ChatbotcomIA/releases).
 
 Requisitos do usuário final:
 
@@ -243,10 +251,10 @@ O executável possui aproximadamente 203 MB porque inclui o ambiente Electron e 
 > [!NOTE]
 > O projeto ainda não possui certificado comercial de assinatura. O Windows SmartScreen pode exibir **Editor desconhecido** na primeira execução. Confira a origem e o hash antes de autorizar.
 
-SHA-256 da versão 1.0.3:
+SHA-256 do build local da versão 1.0.9:
 
 ```text
-041AB380FC26DB018A90CF0DAC2ABD7BF9CC13780DDAEFDBBF80DCD51D3FD787
+A9F15DE163D2F5250DE43BD8CD0DA6E81C439DA9D657069D616C4FCF88640A79
 ```
 
 ### Executar pelo código-fonte
@@ -318,13 +326,17 @@ Sem ElevenLabs configurado, o atendimento em texto continua funcionando normalme
 O módulo de campanhas permite:
 
 - cadastrar contatos com país, DDD e número separados;
+- importar diretamente os contatos salvos que aparecem em **Nova conversa** no WhatsApp conectado;
 - importar planilhas CSV ou XLSX;
 - selecionar destinatários individualmente ou em grupo;
+- excluir de uma vez todos os contatos selecionados;
 - usar texto, imagem ou ambos;
 - personalizar mensagens com tags;
-- definir intervalo entre envios;
+- definir um intervalo mínimo e máximo; uma nova espera é sorteada antes de cada próximo envio;
 - acompanhar enviados e falhas;
 - cancelar uma campanha em andamento.
+
+Na importação direta, o TurboWhats considera somente contatos salvos e registrados no WhatsApp. O próprio usuário, grupos, contatos bloqueados, identificadores sem número disponível e telefones já cadastrados são ignorados. Os identificadores modernos `@lid` são convertidos para o número correspondente antes de salvar.
 
 Colunas reconhecidas na importação:
 
@@ -332,6 +344,21 @@ Colunas reconhecidas na importação:
 - `WhatsApp`, `Telefone`, `Celular`, `Número` ou `Phone`.
 
 Números brasileiros importados com 10 ou 11 dígitos recebem `55` automaticamente. Para outros países, inclua o código internacional.
+
+## Painel de métricas
+
+A aba **Métricas** atualiza automaticamente e mantém os dados no próprio computador. Ela apresenta:
+
+- mensagens enviadas e tentativas realizadas hoje;
+- tempo médio entre envios concluídos;
+- tempo total efetivamente aguardado nas pausas dos disparos;
+- taxa de respostas geradas pela IA em relação às tentativas ao Gemini;
+- taxa de falha dos envios do dia;
+- horário do último envio concluído;
+- quantidade enviada na hora e no minuto atuais;
+- gráficos de distribuição por hora e dos últimos 15 minutos.
+
+Envios automáticos, respostas da IA, áudio e campanhas são contabilizados. Os indicadores diários mudam à meia-noite no horário local, enquanto o histórico técnico dos últimos 31 dias permanece salvo em `metrics.json`.
 
 | Tag | Resultado |
 | --- | --- |
@@ -427,13 +454,18 @@ npm run build:win
 
 O `electron-builder` gera `dist\TurboWhats-Portable-<versão>.exe`. A compilação incorpora aproximadamente 408 MB de recursos do navegador antes da compactação e pode exigir cerca de 1 GB de espaço temporário.
 
-## Testes realizados na versão 1.0.3
+Durante a extração inicial do portátil, o empacotador exibe uma tela de abertura com a identidade TurboWhats. Assim, o usuário recebe retorno visual imediatamente após executar o arquivo, antes mesmo de o Electron estar disponível para criar a janela principal.
+
+## Testes realizados na versão 1.0.9
 
 - verificação de sintaxe dos processos principal, preload, renderer e scripts;
 - smoke test do Electron;
 - validação de IDs únicos na interface;
 - teste de montagem e formatação internacional de telefones;
 - teste do contato brasileiro `+55 (21) 98168-2922`;
+- validação do sorteio de intervalos, incluindo os limites mínimo e máximo;
+- validação dos cálculos, séries horárias e indicadores do painel de métricas;
+- inspeção visual dos créditos na tela de abertura e validação do contato externo;
 - inicialização do aplicativo empacotado;
 - inspeção do conteúdo ASAR;
 - confirmação de ausência de configurações pessoais no pacote;
@@ -483,7 +515,6 @@ Possíveis próximos passos:
 
 - assinatura digital do executável Windows;
 - testes automatizados de interface e integração;
-- painel de métricas de atendimento;
 - exportação de relatórios de campanhas;
 - regras com correspondência parcial ou expressões configuráveis;
 - suporte a múltiplos perfis de atendimento;
@@ -520,11 +551,17 @@ Distribuído sob a licença MIT. Consulte [LICENSE](LICENSE).
 
 ## Autor
 
-Desenvolvido por **[Henrique Louro](https://github.com/louro2023)**.
+Sistema desenvolvido por **[Henrique Louro](https://github.com/louro2023)**.
+
+- Contato: **21981682922**;
+- WhatsApp: [iniciar conversa](https://wa.me/5521981682922);
+- © 2026 Henrique Louro. Todos os direitos reservados a Henrique Louro.
 
 ---
 
 <p align="center">
   <strong>TurboWhats</strong><br>
-  Atendimento inteligente para WhatsApp.
+  Atendimento inteligente para WhatsApp.<br>
+  Desenvolvido por Henrique Louro · Contato: 21981682922<br>
+  © 2026 Henrique Louro · Todos os direitos reservados.
 </p>

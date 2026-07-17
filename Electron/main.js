@@ -140,9 +140,11 @@ async function askGeminiIA(userId, userMessage, attachments) {
     if (!text) {
       console.warn('Gemini não retornou texto.', data?.candidates?.[0]?.finishReason || 'sem motivo informado');
     }
+    recordAiResponseMetric(Boolean(text));
     return text || null;
   } catch (err) {
     console.error('Erro ao consultar o Gemini:', err.message);
+    recordAiResponseMetric(false);
     return null;
   }
 }
@@ -170,6 +172,7 @@ const configPath = path.join(persistentDataRoot, 'config.json');
 const runtimeLogPath = path.join(persistentDataRoot, 'runtime-errors.log');
 const messageTrackerLogPath = path.join(persistentDataRoot, 'message-tracker.log');
 const geminiUsagePath = path.join(persistentDataRoot, 'gemini-usage.json');
+const metricsPath = path.join(persistentDataRoot, 'metrics.json');
 const firstMessageStatePath = path.join(persistentDataRoot, 'first-message-state.json');
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
@@ -192,6 +195,141 @@ function migratePersistentData() {
 }
 
 migratePersistentData();
+
+function createEmptyMetrics() {
+  return {
+    trackingStartedAt: new Date().toISOString(),
+    outboundEvents: [],
+    pauseEvents: [],
+    aiEvents: []
+  };
+}
+
+function loadMetrics() {
+  if (!fs.existsSync(metricsPath)) return createEmptyMetrics();
+  try {
+    const stored = JSON.parse(fs.readFileSync(metricsPath, 'utf8'));
+    return {
+      trackingStartedAt: stored.trackingStartedAt || new Date().toISOString(),
+      outboundEvents: Array.isArray(stored.outboundEvents) ? stored.outboundEvents : [],
+      pauseEvents: Array.isArray(stored.pauseEvents) ? stored.pauseEvents : [],
+      aiEvents: Array.isArray(stored.aiEvents) ? stored.aiEvents : []
+    };
+  } catch (error) {
+    logRuntimeError('métricas:leitura', error);
+    return createEmptyMetrics();
+  }
+}
+
+function saveMetrics(metrics) {
+  const cutoff = Date.now() - (31 * 24 * 60 * 60 * 1000);
+  const keepRecent = event => Number(new Date(event?.timestamp)) >= cutoff;
+  metrics.outboundEvents = metrics.outboundEvents.filter(keepRecent).slice(-50000);
+  metrics.pauseEvents = metrics.pauseEvents.filter(keepRecent).slice(-20000);
+  metrics.aiEvents = metrics.aiEvents.filter(keepRecent).slice(-20000);
+  fs.mkdirSync(path.dirname(metricsPath), { recursive: true });
+  fs.writeFileSync(metricsPath, JSON.stringify(metrics));
+}
+
+function updateMetrics(update) {
+  try {
+    const metrics = loadMetrics();
+    update(metrics);
+    saveMetrics(metrics);
+  } catch (error) {
+    logRuntimeError('métricas:gravação', error);
+  }
+}
+
+function recordOutboundMetric(success, source) {
+  updateMetrics(metrics => metrics.outboundEvents.push({
+    timestamp: new Date().toISOString(),
+    success: success === true,
+    source: String(source || 'automatic')
+  }));
+}
+
+function recordPauseMetric(durationMs) {
+  const normalizedDuration = Math.max(0, Math.round(Number(durationMs) || 0));
+  if (!normalizedDuration) return;
+  updateMetrics(metrics => metrics.pauseEvents.push({
+    timestamp: new Date().toISOString(),
+    durationMs: normalizedDuration
+  }));
+}
+
+function recordAiResponseMetric(success) {
+  updateMetrics(metrics => metrics.aiEvents.push({
+    timestamp: new Date().toISOString(),
+    success: success === true
+  }));
+}
+
+function sameLocalDay(left, right) {
+  return left.getFullYear() === right.getFullYear()
+    && left.getMonth() === right.getMonth()
+    && left.getDate() === right.getDate();
+}
+
+function calculateMetricsSnapshot() {
+  const metrics = loadMetrics();
+  const now = new Date();
+  const todayOutbound = metrics.outboundEvents.filter(event => sameLocalDay(new Date(event.timestamp), now));
+  const successfulToday = todayOutbound.filter(event => event.success === true);
+  const failedToday = todayOutbound.length - successfulToday.length;
+  const todayAi = metrics.aiEvents.filter(event => sameLocalDay(new Date(event.timestamp), now));
+  const successfulAi = todayAi.filter(event => event.success === true).length;
+  const todayPauses = metrics.pauseEvents.filter(event => sameLocalDay(new Date(event.timestamp), now));
+  const successfulTimes = successfulToday
+    .map(event => new Date(event.timestamp).getTime())
+    .filter(Number.isFinite)
+    .sort((a, b) => a - b);
+  const intervals = successfulTimes.slice(1).map((timestamp, index) => timestamp - successfulTimes[index]);
+  const lastSuccessful = metrics.outboundEvents
+    .filter(event => event.success === true)
+    .map(event => event.timestamp)
+    .sort()
+    .at(-1) || null;
+  const hourly = Array.from({ length: 24 }, (_value, hour) => ({ hour, count: 0 }));
+  for (const event of successfulToday) hourly[new Date(event.timestamp).getHours()].count++;
+  const byMinute = [];
+  for (let offset = 14; offset >= 0; offset--) {
+    const minute = new Date(now.getTime() - (offset * 60000));
+    const count = successfulToday.filter(event => {
+      const timestamp = new Date(event.timestamp);
+      return timestamp.getFullYear() === minute.getFullYear()
+        && timestamp.getMonth() === minute.getMonth()
+        && timestamp.getDate() === minute.getDate()
+        && timestamp.getHours() === minute.getHours()
+        && timestamp.getMinutes() === minute.getMinutes();
+    }).length;
+    byMinute.push({
+      label: minute.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      count
+    });
+  }
+
+  return {
+    trackingStartedAt: metrics.trackingStartedAt,
+    sentToday: successfulToday.length,
+    averageIntervalMs: intervals.length ? Math.round(intervals.reduce((sum, value) => sum + value, 0) / intervals.length) : 0,
+    totalPauseMs: todayPauses.reduce((sum, event) => sum + Math.max(0, Number(event.durationMs) || 0), 0),
+    aiResponseRate: todayAi.length ? (successfulAi / todayAi.length) * 100 : 0,
+    aiResponses: successfulAi,
+    aiAttempts: todayAi.length,
+    failureRate: todayOutbound.length ? (failedToday / todayOutbound.length) * 100 : 0,
+    failedToday,
+    attemptsToday: todayOutbound.length,
+    lastSentAt: lastSuccessful,
+    sentThisHour: successfulToday.filter(event => new Date(event.timestamp).getHours() === now.getHours()).length,
+    sentThisMinute: successfulToday.filter(event => {
+      const timestamp = new Date(event.timestamp);
+      return timestamp.getHours() === now.getHours() && timestamp.getMinutes() === now.getMinutes();
+    }).length,
+    hourly,
+    byMinute
+  };
+}
 
 function createEmptyGeminiUsage() {
   return {
@@ -345,18 +483,43 @@ function clearFirstMessageState() {
   }
 }
 
-async function sendWhatsAppText(to, text, typingDelay = 1500) {
-  await delay(typingDelay);
+function calculateSimulatedTypingDelay(text) {
+  const characterCount = String(text || '').trim().length;
+  return Math.min(6000, Math.max(900, characterCount * 38));
+}
+
+async function getChatForSimulatedTyping(contactId) {
   try {
-    const chat = await client.getChatById(to);
-    await chat.sendStateTyping();
-    await delay(typingDelay);
-  } catch (error) {
-    // Some modern @lid contacts cannot be resolved by getChatById. Sending
-    // directly still works, so typing status must never block the reply.
-    console.warn(`Não foi possível exibir "digitando" para ${to}: ${error.message}`);
+    return await client.getChatById(contactId);
+  } catch (originalError) {
+    if (!String(contactId || '').endsWith('@lid')) throw originalError;
+    const [mapping] = await client.getContactLidAndPhone([contactId]);
+    if (!mapping?.pn) throw originalError;
+    return await client.getChatById(mapping.pn);
   }
-  await client.sendMessage(to, text);
+}
+
+async function sendWhatsAppText(to, text, source = 'automatic') {
+  try {
+    const simulatedTypingEnabled = loadConfig().simulatedTypingEnabled !== false;
+    if (simulatedTypingEnabled) {
+      await delay(250);
+      try {
+        const chat = await getChatForSimulatedTyping(to);
+        await chat.sendStateTyping();
+        await delay(calculateSimulatedTypingDelay(text));
+      } catch (error) {
+        // Some modern @lid contacts cannot be resolved by getChatById. Sending
+        // directly still works, so typing status must never block the reply.
+        console.warn(`Não foi possível exibir "digitando" para ${to}: ${error.message}`);
+      }
+    }
+    await client.sendMessage(to, text);
+    recordOutboundMetric(true, source);
+  } catch (error) {
+    recordOutboundMetric(false, source);
+    throw error;
+  }
 }
 
 const DEFAULT_CONFIG = {
@@ -369,8 +532,11 @@ const DEFAULT_CONFIG = {
   aiEnabled: true,
   aiUseConversation: true,
   aiVoiceEnabled: false,
+  simulatedTypingEnabled: true,
   elevenLabsApiKey: '',
   elevenLabsVoiceId: '21m00Tcm4TlvDq8ikWAM',
+  bulkDelayMinSeconds: 10,
+  bulkDelayMaxSeconds: 20,
   bulkContacts: []
 };
 
@@ -478,7 +644,7 @@ async function sendConfiguredFirstMessage(contactId, message) {
   }
 
   const sendPromise = (async () => {
-    await sendWhatsAppText(contactId, message);
+    await sendWhatsAppText(contactId, message, 'first-message');
     rememberBotResponse(contactId);
     return true;
   })();
@@ -756,7 +922,7 @@ async function processMessageQueue(userId) {
     const iaReply = await askGeminiIA(userId, allMessages, allAttachments);
 
     if (iaReply && loadConfig().aiEnabled !== false) {
-      await sendWhatsAppText(userId, iaReply);
+      await sendWhatsAppText(userId, iaReply, 'ai');
       updateConversation(userId, allMessages, iaReply);
       await maybeSendTTS(userId, iaReply);
       batchHandled = true;
@@ -839,12 +1005,12 @@ async function processIncomingMessage(msg) {
   // Com a IA desativada, usa as regras e a mensagem padrão sem resposta.
   const rule = rules.find(r => received === String(r?.trigger || '').trim().toLowerCase());
   if (rule) {
-    await sendWhatsAppText(msg.from, rule.response, 2000);
+    await sendWhatsAppText(msg.from, rule.response, 'rule');
     rememberBotResponse(msg.from);
     return true;
   } else if (defaultMessagesEnabled && defaultNoReply) {
     // Se não houver regra, envia a mensagem padrão sem resposta.
-    await sendWhatsAppText(msg.from, defaultNoReply, 2000);
+    await sendWhatsAppText(msg.from, defaultNoReply, 'fallback');
     rememberBotResponse(msg.from);
     return true;
   }
@@ -1039,7 +1205,7 @@ function createWindow() {
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     try {
       const origin = new URL(url).origin;
-      if (origin === 'https://aistudio.google.com' || origin === 'https://ai.google.dev') {
+      if (origin === 'https://aistudio.google.com' || origin === 'https://ai.google.dev' || origin === 'https://wa.me') {
         shell.openExternal(url);
       }
     } catch (_error) {
@@ -1125,8 +1291,11 @@ ipcMain.handle('config:write', async (_event, newConfig) => {
       aiEnabled: newConfig.aiEnabled !== false,
       aiUseConversation: newConfig.aiUseConversation !== false,
       aiVoiceEnabled: newConfig.aiVoiceEnabled === true,
+      simulatedTypingEnabled: newConfig.simulatedTypingEnabled !== false,
       elevenLabsApiKey: String(newConfig.elevenLabsApiKey || '').trim(),
       elevenLabsVoiceId: String(newConfig.elevenLabsVoiceId || DEFAULT_CONFIG.elevenLabsVoiceId),
+      bulkDelayMinSeconds: Math.max(3, Math.min(600, Number(newConfig.bulkDelayMinSeconds) || DEFAULT_CONFIG.bulkDelayMinSeconds)),
+      bulkDelayMaxSeconds: Math.max(3, Math.min(600, Number(newConfig.bulkDelayMaxSeconds) || DEFAULT_CONFIG.bulkDelayMaxSeconds)),
       bulkContacts: Array.isArray(newConfig.bulkContacts) ? newConfig.bulkContacts : []
     };
     saveConfig(normalizedConfig);
@@ -1177,6 +1346,11 @@ ipcMain.handle('gemini:get-usage', async () => ({
   ok: true,
   model: GEMINI_MODEL,
   ...loadGeminiUsage()
+}));
+
+ipcMain.handle('metrics:get', async () => ({
+  ok: true,
+  ...calculateMetricsSnapshot()
 }));
 
 // Handler para reconectar WhatsApp
@@ -1341,10 +1515,82 @@ function sendBulkProgress(payload) {
 }
 
 async function waitForBulkDelay(milliseconds, job) {
+  const startedAt = Date.now();
   const end = Date.now() + milliseconds;
   while (!job.cancelled && Date.now() < end) {
     await delay(Math.min(250, end - Date.now()));
   }
+  recordPauseMetric(Date.now() - startedAt);
+}
+
+function calculateRandomBulkDelaySeconds(minSeconds, maxSeconds, randomValue = Math.random()) {
+  return Math.floor(randomValue * (maxSeconds - minSeconds + 1)) + minSeconds;
+}
+
+async function resolveSavedWhatsAppContacts() {
+  const allContacts = await client.getContacts();
+  const savedContacts = allContacts.filter(contact => (
+    contact?.isMyContact === true &&
+    contact?.isUser === true &&
+    contact?.isWAContact === true &&
+    contact?.isGroup !== true &&
+    contact?.isMe !== true &&
+    contact?.isBlocked !== true
+  ));
+
+  const lidIds = [...new Set(savedContacts
+    .map(contact => String(contact?.id?._serialized || ''))
+    .filter(id => id.endsWith('@lid')))];
+  const phoneByLid = new Map();
+
+  for (let offset = 0; offset < lidIds.length; offset += 100) {
+    const chunk = lidIds.slice(offset, offset + 100);
+    try {
+      const mappings = await client.getContactLidAndPhone(chunk);
+      for (const mapping of mappings || []) {
+        const lid = String(mapping?.lid || '');
+        const phone = String(mapping?.pn || '');
+        if (lid && phone) phoneByLid.set(lid, phone);
+      }
+    } catch (error) {
+      logRuntimeError('importação-contatos-whatsapp:resolver-lid', error);
+    }
+  }
+
+  const contactsByPhone = new Map();
+  let unresolved = 0;
+
+  for (const contact of savedContacts) {
+    const serializedId = String(contact?.id?._serialized || '');
+    const phoneSource = serializedId.endsWith('@lid')
+      ? phoneByLid.get(serializedId)
+      : (contact?.number || contact?.id?.user || serializedId);
+    const phone = normalizePhone(phoneSource);
+    if (!phone) {
+      unresolved++;
+      continue;
+    }
+
+    const name = [contact.name, contact.shortName, contact.verifiedName, contact.pushname]
+      .map(value => String(value || '').trim())
+      .find(Boolean) || phone;
+    const existing = contactsByPhone.get(phone);
+    if (!existing || (existing.name === existing.phone && name !== phone)) {
+      contactsByPhone.set(phone, { name, phone, source: 'whatsapp' });
+    }
+  }
+
+  const resolvedContacts = [...contactsByPhone.values()]
+    .sort((left, right) => left.name.localeCompare(right.name, 'pt-BR', { sensitivity: 'base' }));
+  const limitedContacts = resolvedContacts.slice(0, 5000);
+
+  return {
+    contacts: limitedContacts,
+    savedCount: savedContacts.length,
+    unresolved,
+    duplicates: Math.max(0, savedContacts.length - unresolved - resolvedContacts.length),
+    truncated: Math.max(0, resolvedContacts.length - limitedContacts.length)
+  };
 }
 
 ipcMain.handle('bulk:select-image', async () => {
@@ -1408,6 +1654,24 @@ ipcMain.handle('bulk:import-contacts', async () => {
   }
 });
 
+ipcMain.handle('bulk:import-whatsapp-contacts', async () => {
+  if (!connectionState.connected) {
+    return { ok: false, error: 'Conecte o WhatsApp antes de importar os contatos.' };
+  }
+
+  try {
+    const result = await resolveSavedWhatsAppContacts();
+    console.log(`👥 Contatos do WhatsApp: ${result.contacts.length} resolvidos de ${result.savedCount} salvos.`);
+    return { ok: true, ...result };
+  } catch (error) {
+    logRuntimeError('importação-contatos-whatsapp', error);
+    return {
+      ok: false,
+      error: 'Não foi possível ler os contatos salvos do WhatsApp. Aguarde a sincronização e tente novamente.'
+    };
+  }
+});
+
 ipcMain.handle('bulk:start', async (_event, payload) => {
   if (bulkJob) return { ok: false, error: 'Já existe um envio em andamento.' };
   if (!connectionState.connected) return { ok: false, error: 'Conecte o WhatsApp antes de iniciar o envio.' };
@@ -1415,10 +1679,13 @@ ipcMain.handle('bulk:start', async (_event, payload) => {
   const contacts = Array.isArray(payload?.contacts) ? payload.contacts.slice(0, 5000) : [];
   const message = String(payload?.message || '').trim();
   const imagePath = payload?.imagePath ? path.resolve(String(payload.imagePath)) : null;
-  const delayMs = Math.max(3000, Math.min(600000, Number(payload?.delaySeconds || 10) * 1000));
+  const legacyDelay = Number(payload?.delaySeconds);
+  const delayMinSeconds = Math.max(3, Math.min(600, Number(payload?.delayMinSeconds) || legacyDelay || DEFAULT_CONFIG.bulkDelayMinSeconds));
+  const delayMaxSeconds = Math.max(3, Math.min(600, Number(payload?.delayMaxSeconds) || legacyDelay || DEFAULT_CONFIG.bulkDelayMaxSeconds));
   if (!contacts.length) return { ok: false, error: 'Selecione pelo menos um contato.' };
   if (!message && !imagePath) return { ok: false, error: 'Informe uma mensagem ou selecione uma imagem.' };
   if (imagePath && !fs.existsSync(imagePath)) return { ok: false, error: 'A imagem selecionada não existe mais.' };
+  if (delayMinSeconds > delayMaxSeconds) return { ok: false, error: 'O intervalo inicial não pode ser maior que o intervalo final.' };
 
   const job = { cancelled: false };
   bulkJob = job;
@@ -1442,20 +1709,27 @@ ipcMain.handle('bulk:start', async (_event, payload) => {
           await client.sendMessage(numberId._serialized, personalizedMessage);
         }
         sent++;
+        recordOutboundMetric(true, 'bulk');
       } catch (err) {
         failed++;
         error = err.message || String(err);
+        recordOutboundMetric(false, 'bulk');
       }
 
+      const hasNextContact = index < contacts.length - 1 && !job.cancelled;
+      const nextDelaySeconds = hasNextContact
+        ? calculateRandomBulkDelaySeconds(delayMinSeconds, delayMaxSeconds)
+        : null;
       sendBulkProgress({
         current: index + 1,
         total: contacts.length,
         sent,
         failed,
         contact: { name: String(contact.name || ''), phone: String(contact.phone || '') },
-        error
+        error,
+        nextDelaySeconds
       });
-      if (index < contacts.length - 1 && !job.cancelled) await waitForBulkDelay(delayMs, job);
+      if (nextDelaySeconds !== null) await waitForBulkDelay(nextDelaySeconds * 1000, job);
     }
 
     return { ok: true, cancelled: job.cancelled, sent, failed, total: contacts.length };
@@ -1489,6 +1763,7 @@ async function maybeSendTTS(to, text) {
     return;
   }
 
+  let whatsappSendAttempted = false;
   try {
     const voiceId = encodeURIComponent(config.elevenLabsVoiceId || '21m00Tcm4TlvDq8ikWAM');
     const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
@@ -1502,8 +1777,11 @@ async function maybeSendTTS(to, text) {
     if (!response.ok) throw new Error(`ElevenLabs respondeu com HTTP ${response.status}`);
     const base64 = Buffer.from(await response.arrayBuffer()).toString('base64');
     const media = new MessageMedia('audio/mpeg', base64, 'resposta.mp3');
+    whatsappSendAttempted = true;
     await client.sendMessage(to, media);
+    recordOutboundMetric(true, 'ai-voice');
   } catch (err) {
     console.error('TTS falhou:', err.message);
+    if (whatsappSendAttempted) recordOutboundMetric(false, 'ai-voice');
   }
 }

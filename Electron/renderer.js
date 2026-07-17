@@ -61,6 +61,80 @@ async function renderGeminiUsage() {
   }
 }
 
+function formatMetricDuration(milliseconds, emptyValue = '0s') {
+  const totalSeconds = Math.max(0, Math.round(Number(milliseconds) / 1000));
+  if (!totalSeconds) return emptyValue;
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours) return `${hours}h ${minutes}min`;
+  if (minutes) return `${minutes}min ${seconds}s`;
+  return `${seconds}s`;
+}
+
+function renderMetricBars(elementId, data, labelFormatter) {
+  const chart = document.getElementById(elementId);
+  if (!chart) return;
+  chart.replaceChildren();
+  const highest = Math.max(1, ...data.map(item => Number(item.count) || 0));
+  data.forEach((item, index) => {
+    const column = document.createElement('div');
+    column.className = 'metric-bar-column';
+    const value = document.createElement('span');
+    value.className = 'metric-bar-value';
+    value.textContent = String(item.count || 0);
+    const track = document.createElement('div');
+    track.className = 'metric-bar-track';
+    const bar = document.createElement('div');
+    bar.className = 'metric-bar-fill';
+    const percentage = ((Number(item.count) || 0) / highest) * 100;
+    bar.style.height = item.count ? `${Math.max(8, percentage)}%` : '2px';
+    track.appendChild(bar);
+    const label = document.createElement('small');
+    label.textContent = labelFormatter(item, index);
+    column.title = `${label.textContent}: ${item.count || 0} envio${item.count === 1 ? '' : 's'}`;
+    column.append(value, track, label);
+    chart.appendChild(column);
+  });
+}
+
+async function renderMetrics() {
+  const refreshButton = document.getElementById('refreshMetrics');
+  const errorArea = document.getElementById('metricsError');
+  if (!window.electronAPI?.getMetrics) return;
+  try {
+    if (refreshButton) refreshButton.disabled = true;
+    const metrics = await window.electronAPI.getMetrics();
+    if (!metrics?.ok) throw new Error(metrics?.error || 'Não foi possível carregar as métricas.');
+    document.getElementById('metricSentToday').textContent = formatUsageNumber(metrics.sentToday);
+    document.getElementById('metricAttemptsToday').textContent = `${formatUsageNumber(metrics.attemptsToday)} tentativa${metrics.attemptsToday === 1 ? '' : 's'}`;
+    document.getElementById('metricAverageInterval').textContent = formatMetricDuration(metrics.averageIntervalMs, '—');
+    document.getElementById('metricTotalPause').textContent = formatMetricDuration(metrics.totalPauseMs);
+    document.getElementById('metricAiRate').textContent = `${Number(metrics.aiResponseRate || 0).toFixed(1).replace('.', ',')}%`;
+    document.getElementById('metricAiDetail').textContent = `${formatUsageNumber(metrics.aiResponses)} de ${formatUsageNumber(metrics.aiAttempts)} tentativa${metrics.aiAttempts === 1 ? '' : 's'}`;
+    document.getElementById('metricFailureRate').textContent = `${Number(metrics.failureRate || 0).toFixed(1).replace('.', ',')}%`;
+    document.getElementById('metricFailureDetail').textContent = `${formatUsageNumber(metrics.failedToday)} falha${metrics.failedToday === 1 ? '' : 's'} hoje`;
+    document.getElementById('metricLastSent').textContent = metrics.lastSentAt
+      ? new Date(metrics.lastSentAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      : '—';
+    document.getElementById('metricThisHour').textContent = formatUsageNumber(metrics.sentThisHour);
+    document.getElementById('metricThisMinute').textContent = formatUsageNumber(metrics.sentThisMinute);
+    renderMetricBars('metricHourlyChart', metrics.hourly || [], item => `${String(item.hour).padStart(2, '0')}h`);
+    renderMetricBars('metricMinuteChart', metrics.byMinute || [], item => item.label);
+    document.getElementById('metricsUpdatedAt').textContent = `Atualizado às ${new Date().toLocaleTimeString('pt-BR')} • dados armazenados somente neste computador.`;
+    if (errorArea) errorArea.style.display = 'none';
+  } catch (error) {
+    if (errorArea) {
+      errorArea.textContent = `Não foi possível atualizar o painel: ${error.message}`;
+      errorArea.style.display = '';
+    }
+  } finally {
+    if (refreshButton) refreshButton.disabled = false;
+  }
+}
+
+document.getElementById('refreshMetrics').addEventListener('click', renderMetrics);
+
 window.addEventListener('DOMContentLoaded', async () => {
   const btnSair = document.getElementById('btnSair');
   if (btnSair) {
@@ -156,7 +230,10 @@ window.addEventListener('DOMContentLoaded', async () => {
   await renderRules();
   await renderGeminiUsage();
   await renderBulkContacts();
+  await loadBulkDelaySettings();
+  await renderMetrics();
   window.setInterval(renderGeminiUsage, 15000);
+  window.setInterval(renderMetrics, 10000);
 });
 
 // --- INÍCIO: Barra de carregamento QR Code ---
@@ -483,10 +560,12 @@ async function renderRules() {
   const aiEnabled = document.getElementById('aiEnabled');
   const aiUseConversation = document.getElementById('aiUseConversation');
   const aiVoiceEnabled = document.getElementById('aiVoiceEnabled');
+  const simulatedTypingEnabled = document.getElementById('simulatedTypingEnabled');
   if (defaultMessagesEnabled) defaultMessagesEnabled.checked = cfg.defaultMessagesEnabled !== false;
   if (aiEnabled) aiEnabled.checked = cfg.aiEnabled !== false;
   if (aiUseConversation) aiUseConversation.checked = cfg.aiUseConversation !== false;
   if (aiVoiceEnabled) aiVoiceEnabled.checked = !!cfg.aiVoiceEnabled;
+  if (simulatedTypingEnabled) simulatedTypingEnabled.checked = cfg.simulatedTypingEnabled !== false;
   updateAiEnabledDisplay(cfg.aiEnabled !== false);
   updateDefaultMessagesDisplay(cfg.defaultMessagesEnabled !== false);
 
@@ -610,6 +689,11 @@ document.getElementById('aiVoiceEnabled').addEventListener('change', async (e) =
   cfg.aiVoiceEnabled = !!e.target.checked;
   await writeConfig(cfg);
 });
+document.getElementById('simulatedTypingEnabled').addEventListener('change', async (e) => {
+  const cfg = await readConfig();
+  cfg.simulatedTypingEnabled = !!e.target.checked;
+  await writeConfig(cfg);
+});
 
 // Salvar configurações de voz
 document.getElementById('saveVoiceSettings').addEventListener('click', async () => {
@@ -727,6 +811,8 @@ document.getElementById('defaultNoReplyForm').addEventListener('submit', async f
 let bulkSelectedImagePath = null;
 let bulkRunning = false;
 const bulkSelectedIds = new Set();
+const BULK_DELAY_MIN_SECONDS = 3;
+const BULK_DELAY_MAX_SECONDS = 600;
 const BULK_COUNTRY_CODES = ['591', '593', '506', '503', '502', '509', '504', '505', '507', '595', '598', '351', '55', '54', '56', '57', '53', '52', '51', '58', '34', '44', '39', '49', '33', '1'];
 
 function bulkDigits(value) {
@@ -834,6 +920,36 @@ async function saveBulkContacts(contacts) {
   await writeConfig(cfg);
 }
 
+function getBulkDelayRange() {
+  const rawMin = Number(document.getElementById('bulkDelayMin').value);
+  const rawMax = Number(document.getElementById('bulkDelayMax').value);
+  if (!Number.isFinite(rawMin) || !Number.isFinite(rawMax)) return null;
+  const min = Math.round(rawMin);
+  const max = Math.round(rawMax);
+  if (min < BULK_DELAY_MIN_SECONDS || max > BULK_DELAY_MAX_SECONDS || min > max) return null;
+  return { min, max };
+}
+
+async function loadBulkDelaySettings() {
+  const cfg = await readConfig();
+  document.getElementById('bulkDelayMin').value = Number(cfg.bulkDelayMinSeconds) || 10;
+  document.getElementById('bulkDelayMax').value = Number(cfg.bulkDelayMaxSeconds) || 20;
+}
+
+async function saveBulkDelaySettings(range) {
+  const cfg = await readConfig();
+  cfg.bulkDelayMinSeconds = range.min;
+  cfg.bulkDelayMaxSeconds = range.max;
+  await writeConfig(cfg);
+}
+
+for (const fieldId of ['bulkDelayMin', 'bulkDelayMax']) {
+  document.getElementById(fieldId).addEventListener('change', async () => {
+    const range = getBulkDelayRange();
+    if (range) await saveBulkDelaySettings(range);
+  });
+}
+
 function setBulkRunning(running) {
   bulkRunning = running;
   document.getElementById('bulkStart').disabled = running;
@@ -842,6 +958,50 @@ function setBulkRunning(running) {
     element.disabled = running;
   });
   document.getElementById('bulkImportContacts').disabled = running;
+  document.getElementById('bulkImportWhatsApp').disabled = running;
+  document.getElementById('bulkDeleteSelected').disabled = running || bulkSelectedIds.size === 0;
+}
+
+function setBulkImportFeedback(type, message) {
+  const feedback = document.getElementById('bulkImportFeedback');
+  if (!feedback) return;
+  feedback.className = `bulk-import-feedback ${type || ''}`.trim();
+  feedback.textContent = message || '';
+}
+
+function setBulkImportButtonsDisabled(disabled) {
+  document.getElementById('bulkImportContacts').disabled = disabled || bulkRunning;
+  document.getElementById('bulkImportWhatsApp').disabled = disabled || bulkRunning;
+}
+
+async function mergeImportedBulkContacts(importedContacts) {
+  const contacts = await loadBulkContacts();
+  const phones = new Set(contacts.map(contact => normalizeBulkPhone(contact.phone)).filter(Boolean));
+  let added = 0;
+  let skipped = 0;
+
+  for (const imported of importedContacts || []) {
+    const phone = normalizeBulkPhone(imported.phone);
+    if (!phone || phones.has(phone)) {
+      skipped++;
+      continue;
+    }
+    const phoneParts = getBulkPhoneParts({ phone });
+    contacts.push({
+      id: crypto.randomUUID(),
+      name: String(imported.name || '').trim(),
+      phone,
+      ...phoneParts
+    });
+    phones.add(phone);
+    added++;
+  }
+
+  if (added) {
+    await saveBulkContacts(contacts);
+    await renderBulkContacts();
+  }
+  return { added, skipped };
 }
 
 async function renderBulkContacts() {
@@ -915,6 +1075,12 @@ function updateBulkSelectionState(contacts) {
   const selectAll = document.getElementById('bulkSelectAll');
   selectAll.checked = contacts.length > 0 && contacts.every(contact => bulkSelectedIds.has(contact.id));
   selectAll.indeterminate = contacts.some(contact => bulkSelectedIds.has(contact.id)) && !selectAll.checked;
+  const selectedCount = contacts.filter(contact => bulkSelectedIds.has(contact.id)).length;
+  const deleteButton = document.getElementById('bulkDeleteSelected');
+  deleteButton.disabled = bulkRunning || selectedCount === 0;
+  deleteButton.textContent = selectedCount
+    ? `Excluir selecionados (${selectedCount})`
+    : 'Excluir selecionados';
 }
 
 function editBulkContact(contact) {
@@ -933,6 +1099,11 @@ async function deleteBulkContact(id) {
   await saveBulkContacts(contacts.filter(contact => contact.id !== id));
   bulkSelectedIds.delete(id);
   await renderBulkContacts();
+}
+
+function removeBulkContactsByIds(contacts, selectedIds) {
+  const ids = selectedIds instanceof Set ? selectedIds : new Set(selectedIds || []);
+  return (contacts || []).filter(contact => !ids.has(contact.id));
 }
 
 document.getElementById('bulkContactForm').addEventListener('submit', async event => {
@@ -984,28 +1155,96 @@ document.getElementById('bulkSelectAll').addEventListener('change', async event 
   await renderBulkContacts();
 });
 
-document.getElementById('bulkImportContacts').addEventListener('click', async () => {
-  const result = await window.electronAPI.importBulkContacts();
-  if (!result?.ok) {
-    alert(result?.error || 'Falha ao importar contatos.');
-    return;
-  }
-  if (!result.contacts.length) return;
-
+document.getElementById('bulkDeleteSelected').addEventListener('click', async () => {
   const contacts = await loadBulkContacts();
-  const phones = new Set(contacts.map(contact => normalizeBulkPhone(contact.phone)).filter(Boolean));
-  let added = 0;
-  for (const imported of result.contacts) {
-    const phone = normalizeBulkPhone(imported.phone);
-    if (!phone || phones.has(phone)) continue;
-    const phoneParts = getBulkPhoneParts({ phone });
-    contacts.push({ id: crypto.randomUUID(), name: imported.name || '', phone, ...phoneParts });
-    phones.add(phone);
-    added++;
+  const selectedContacts = contacts.filter(contact => bulkSelectedIds.has(contact.id));
+  if (!selectedContacts.length) return;
+
+  const confirmed = confirm(`Excluir ${selectedContacts.length} contato${selectedContacts.length === 1 ? '' : 's'} selecionado${selectedContacts.length === 1 ? '' : 's'}? Esta ação não pode ser desfeita.`);
+  if (!confirmed) return;
+
+  const button = document.getElementById('bulkDeleteSelected');
+  button.disabled = true;
+  button.textContent = 'Excluindo...';
+  const selectedIdSet = new Set(selectedContacts.map(contact => contact.id));
+  const editingId = document.getElementById('bulkContactId').value;
+
+  try {
+    await saveBulkContacts(removeBulkContactsByIds(contacts, selectedIdSet));
+    bulkSelectedIds.clear();
+    if (selectedIdSet.has(editingId)) {
+      document.getElementById('bulkContactForm').reset();
+      document.getElementById('bulkContactId').value = '';
+      document.getElementById('bulkSaveContact').textContent = 'Adicionar';
+      updateBulkPhonePreview();
+    }
+    setBulkImportFeedback('success', `${selectedContacts.length} contato${selectedContacts.length === 1 ? '' : 's'} excluído${selectedContacts.length === 1 ? '' : 's'} com sucesso.`);
+    await renderBulkContacts();
+  } catch (error) {
+    setBulkImportFeedback('error', `Não foi possível excluir os contatos: ${error.message || error}`);
+    updateBulkSelectionState(contacts);
   }
-  await saveBulkContacts(contacts);
-  await renderBulkContacts();
-  alert(`${added} contato${added === 1 ? '' : 's'} importado${added === 1 ? '' : 's'}.`);
+});
+
+document.getElementById('bulkImportWhatsApp').addEventListener('click', async () => {
+  const button = document.getElementById('bulkImportWhatsApp');
+  const originalContent = button.innerHTML;
+  setBulkImportButtonsDisabled(true);
+  button.textContent = 'Lendo contatos...';
+  setBulkImportFeedback('loading', 'Sincronizando a lista de contatos salvos do WhatsApp...');
+
+  try {
+    const result = await window.electronAPI.importWhatsAppContacts();
+    if (!result?.ok) {
+      setBulkImportFeedback('error', result?.error || 'Não foi possível importar os contatos do WhatsApp.');
+      return;
+    }
+
+    const merged = await mergeImportedBulkContacts(result.contacts);
+    const details = [];
+    if (merged.skipped) details.push(`${merged.skipped} já existente${merged.skipped === 1 ? '' : 's'} no TurboWhats`);
+    if (result.unresolved) details.push(`${result.unresolved} sem número disponível`);
+    if (result.truncated) details.push(`${result.truncated} acima do limite de 5.000`);
+    const suffix = details.length ? ` ${details.join('; ')}.` : '';
+    let message;
+    if (merged.added) {
+      message = `${merged.added} contato${merged.added === 1 ? '' : 's'} importado${merged.added === 1 ? '' : 's'} do WhatsApp.${suffix}`;
+    } else if (!result.savedCount) {
+      message = 'Nenhum contato salvo foi encontrado no WhatsApp conectado.';
+    } else {
+      message = `Nenhum contato novo foi adicionado.${suffix || ' Todos os contatos encontrados já estavam cadastrados.'}`;
+    }
+    setBulkImportFeedback('success', message);
+  } catch (error) {
+    setBulkImportFeedback('error', `Falha ao importar: ${error.message || error}`);
+  } finally {
+    button.innerHTML = originalContent;
+    setBulkImportButtonsDisabled(false);
+  }
+});
+
+document.getElementById('bulkImportContacts').addEventListener('click', async () => {
+  setBulkImportButtonsDisabled(true);
+  setBulkImportFeedback('loading', 'Abrindo e validando a planilha de contatos...');
+  try {
+    const result = await window.electronAPI.importBulkContacts();
+    if (!result?.ok) {
+      setBulkImportFeedback('error', result?.error || 'Falha ao importar contatos.');
+      return;
+    }
+    if (!result.contacts.length) {
+      setBulkImportFeedback('', '');
+      return;
+    }
+
+    const merged = await mergeImportedBulkContacts(result.contacts);
+    const skippedText = merged.skipped ? ` ${merged.skipped} linha${merged.skipped === 1 ? '' : 's'} inválida${merged.skipped === 1 ? '' : 's'} ou duplicada${merged.skipped === 1 ? '' : 's'}.` : '';
+    setBulkImportFeedback('success', `${merged.added} contato${merged.added === 1 ? '' : 's'} importado${merged.added === 1 ? '' : 's'} da planilha.${skippedText}`);
+  } catch (error) {
+    setBulkImportFeedback('error', `Falha ao importar: ${error.message || error}`);
+  } finally {
+    setBulkImportButtonsDisabled(false);
+  }
 });
 
 document.getElementById('bulkSelectImage').addEventListener('click', async () => {
@@ -1046,7 +1285,8 @@ window.electronAPI.onBulkProgress(data => {
   const line = document.createElement('div');
   line.className = data.error ? 'bulk-log-error' : 'bulk-log-success';
   const label = data.contact.name || data.contact.phone;
-  line.textContent = data.error ? `✕ ${label}: ${data.error}` : `✓ ${label}`;
+  const waitText = Number.isFinite(data.nextDelaySeconds) ? ` • próximo envio em ${data.nextDelaySeconds}s` : '';
+  line.textContent = data.error ? `✕ ${label}: ${data.error}${waitText}` : `✓ ${label}${waitText}`;
   const log = document.getElementById('bulkProgressLog');
   log.appendChild(line);
   log.scrollTop = log.scrollHeight;
@@ -1070,6 +1310,13 @@ document.getElementById('bulkStart').addEventListener('click', async () => {
     return;
   }
 
+  const delayRange = getBulkDelayRange();
+  if (!delayRange) {
+    alert('Informe um intervalo válido entre 3 e 600 segundos. O valor “De” não pode ser maior que o valor “Até”.');
+    return;
+  }
+  await saveBulkDelaySettings(delayRange);
+
   const progressArea = document.getElementById('bulkProgressArea');
   progressArea.style.display = '';
   document.getElementById('bulkProgressText').textContent = 'Preparando campanha...';
@@ -1083,7 +1330,8 @@ document.getElementById('bulkStart').addEventListener('click', async () => {
       contacts,
       message,
       imagePath: bulkSelectedImagePath,
-      delaySeconds: Number(document.getElementById('bulkDelay').value)
+      delayMinSeconds: delayRange.min,
+      delayMaxSeconds: delayRange.max
     });
     if (!result?.ok) {
       alert(result?.error || 'Não foi possível iniciar o envio.');

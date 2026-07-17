@@ -32,10 +32,20 @@
         <button class="nav-item" data-section="ai">
           <span class="icon">🤖</span> IA & Voz
         </button>
+        <button class="nav-item" data-section="metrics">
+          <span class="icon">📈</span> Métricas
+        </button>
         <button class="nav-item" data-section="help">
           <span class="icon">❔</span> Ajuda
         </button>
       </nav>
+
+      <aside class="sidebar-credits" aria-label="Créditos do sistema">
+        <span>Sistema desenvolvido por</span>
+        <strong>Henrique Louro</strong>
+        <a href="https://wa.me/5521981682922" target="_blank" rel="noreferrer">Contato: 21981682922</a>
+        <small>© 2026 Henrique Louro<br>Todos os direitos reservados.</small>
+      </aside>
 
       <button id="btnSair" class="btn-logout">Sair</button>
     </aside>
@@ -59,6 +69,7 @@
             <span class="status-dot disconnected">●</span>
             <span id="waStatusText">Desconectado</span>
           </div>
+          <span class="header-developer">Desenvolvido por Henrique Louro</span>
         </div>
       </header>
 
@@ -122,6 +133,7 @@
                     <span>4</span><small>Concluído</small>
                   </div>
                 </div>
+                <p class="loader-developer-credit">TurboWhats © 2026 Henrique Louro · Todos os direitos reservados</p>
               </div>
             </div>
 
@@ -243,9 +255,22 @@
         <div class="bulk-layout">
           <div class="card">
             <div class="card-header">
-              <h3>👥 Contatos</h3>
-              <button type="button" id="bulkImportContacts" class="btn btn-secondary btn-small">Importar XLSX/CSV</button>
+              <div>
+                <h3>👥 Contatos</h3>
+                <small>Cadastre manualmente ou importe da conta conectada</small>
+              </div>
+              <div class="bulk-contact-import-actions">
+                <button type="button" id="bulkImportWhatsApp" class="btn btn-primary btn-small">
+                  <span class="icon">↙</span> Importar do WhatsApp
+                </button>
+                <button type="button" id="bulkImportContacts" class="btn btn-secondary btn-small">Importar XLSX/CSV</button>
+              </div>
             </div>
+            <div class="bulk-import-note">
+              <span>💡</span>
+              <p>O TurboWhats importa os contatos salvos que aparecem em <strong>Nova conversa</strong>. Grupos e números duplicados são ignorados.</p>
+            </div>
+            <div id="bulkImportFeedback" class="bulk-import-feedback" role="status" aria-live="polite"></div>
             <form id="bulkContactForm" class="form-grid bulk-contact-form">
               <input type="hidden" id="bulkContactId">
               <div class="form-group bulk-contact-name">
@@ -305,7 +330,12 @@
                 <span class="checkbox-custom"></span>
                 Selecionar todos
               </label>
-              <span id="bulkContactCount" class="text-muted">0 contatos</span>
+              <div class="bulk-toolbar-meta">
+                <span id="bulkContactCount" class="text-muted">0 contatos</span>
+                <button type="button" id="bulkDeleteSelected" class="btn btn-danger btn-small" disabled>
+                  Excluir selecionados
+                </button>
+              </div>
             </div>
             <div id="bulkContactsList" class="bulk-contacts-list"></div>
           </div>
@@ -338,9 +368,19 @@
                 <span id="bulkImageName" class="text-muted">Nenhuma imagem selecionada</span>
               </div>
               <div class="form-group">
-                <label for="bulkDelay">Intervalo entre envios (segundos)</label>
-                <input type="number" id="bulkDelay" min="3" max="600" value="10">
-                <small>Use intervalos adequados e envie somente para contatos que autorizaram o recebimento.</small>
+                <label>Intervalo aleatório entre envios (segundos)</label>
+                <div class="bulk-delay-range">
+                  <label for="bulkDelayMin">
+                    <span>De</span>
+                    <input type="number" id="bulkDelayMin" min="3" max="600" value="10">
+                  </label>
+                  <span class="bulk-delay-separator">até</span>
+                  <label for="bulkDelayMax">
+                    <span>Até</span>
+                    <input type="number" id="bulkDelayMax" min="3" max="600" value="20">
+                  </label>
+                </div>
+                <small>Uma nova espera é sorteada dentro desse intervalo antes de cada próximo envio.</small>
               </div>
               <label class="checkbox-label">
                 <input type="checkbox" id="bulkConsent">
@@ -363,6 +403,66 @@
             </div>
           </div>
         </div>
+      </section>
+
+      <!-- Metrics Section -->
+      <section id="metrics-section" class="section">
+        <div class="section-header metrics-header">
+          <div>
+            <span class="section-eyebrow">Desempenho de hoje</span>
+            <h2>Painel de Métricas</h2>
+            <p>Acompanhe os envios, pausas, falhas e o desempenho das respostas da IA</p>
+          </div>
+          <button type="button" id="refreshMetrics" class="btn btn-secondary btn-small">↻ Atualizar</button>
+        </div>
+
+        <div id="metricsError" class="error-message" style="display:none;"></div>
+        <div class="metrics-grid">
+          <article class="metric-card metric-primary">
+            <span class="metric-icon">✉</span>
+            <div><small>Mensagens enviadas hoje</small><strong id="metricSentToday">0</strong><span id="metricAttemptsToday">0 tentativas</span></div>
+          </article>
+          <article class="metric-card">
+            <span class="metric-icon">↔</span>
+            <div><small>Tempo médio entre envios</small><strong id="metricAverageInterval">—</strong><span>Entre envios concluídos hoje</span></div>
+          </article>
+          <article class="metric-card">
+            <span class="metric-icon">⏸</span>
+            <div><small>Tempo total de pausa</small><strong id="metricTotalPause">0s</strong><span>Pausas dos disparos hoje</span></div>
+          </article>
+          <article class="metric-card metric-success">
+            <span class="metric-icon">AI</span>
+            <div><small>Taxa de resposta pela IA</small><strong id="metricAiRate">0%</strong><span id="metricAiDetail">0 de 0 tentativas</span></div>
+          </article>
+          <article class="metric-card metric-danger">
+            <span class="metric-icon">!</span>
+            <div><small>Taxa de falha</small><strong id="metricFailureRate">0%</strong><span id="metricFailureDetail">0 falhas hoje</span></div>
+          </article>
+          <article class="metric-card">
+            <span class="metric-icon">◷</span>
+            <div><small>Horário do último envio</small><strong id="metricLastSent">—</strong><span>Último envio concluído</span></div>
+          </article>
+          <article class="metric-card">
+            <span class="metric-icon">1h</span>
+            <div><small>Quantidade enviada por hora</small><strong id="metricThisHour">0</strong><span>Na hora atual</span></div>
+          </article>
+          <article class="metric-card">
+            <span class="metric-icon">1m</span>
+            <div><small>Quantidade enviada por minuto</small><strong id="metricThisMinute">0</strong><span>No minuto atual</span></div>
+          </article>
+        </div>
+
+        <div class="metrics-charts">
+          <article class="card metric-chart-card">
+            <div class="metric-chart-heading"><div><h3>Envios por hora</h3><p>Distribuição dos envios concluídos hoje</p></div><span>24 horas</span></div>
+            <div id="metricHourlyChart" class="metric-bar-chart" aria-label="Gráfico de envios por hora"></div>
+          </article>
+          <article class="card metric-chart-card">
+            <div class="metric-chart-heading"><div><h3>Envios por minuto</h3><p>Atividade nos últimos 15 minutos</p></div><span>Tempo real</span></div>
+            <div id="metricMinuteChart" class="metric-bar-chart metric-minute-chart" aria-label="Gráfico de envios por minuto"></div>
+          </article>
+        </div>
+        <p id="metricsUpdatedAt" class="metrics-updated">As métricas são armazenadas somente neste computador.</p>
       </section>
 
       <!-- Help Section -->
@@ -435,6 +535,7 @@
                   <li>Interpretar imagens, áudios, vídeos e PDFs compatíveis recebidos no WhatsApp.</li>
                   <li>Usar o histórico recente quando <strong>Manter histórico</strong> estiver ativado.</li>
                   <li>Enviar também a resposta em áudio quando o TTS estiver configurado.</li>
+                  <li>Simular a digitação antes das respostas automáticas para deixar a conversa mais natural.</li>
                 </ul>
               </div>
             </div>
@@ -457,7 +558,7 @@
             <h3>3. Contatos e disparos</h3>
             <p>Em <strong>Disparos</strong>, escolha o país e informe o DDD e o número em campos separados. Exemplo: <strong>Brasil (+55)</strong>, DDD <strong>21</strong> e número <strong>981682922</strong>. Confira a prévia antes de salvar.</p>
             <p>Também é possível importar um arquivo XLSX/CSV com uma coluna <strong>Nome</strong> e outra chamada <strong>WhatsApp</strong>, <strong>Telefone</strong>, <strong>Celular</strong> ou <strong>Número</strong>. Na importação, mantenha o código do país no telefone.</p>
-            <p>Selecione os destinatários, escreva a mensagem, anexe uma imagem se desejar, defina o intervalo e inicie a campanha.</p>
+            <p>Selecione os destinatários, escreva a mensagem, anexe uma imagem se desejar e defina um intervalo mínimo e máximo. Antes de cada próximo envio, o TurboWhats sorteia uma espera diferente dentro desses limites.</p>
           </article>
 
           <article class="card help-card help-tags">
@@ -482,6 +583,19 @@
             <h3>5. Envio responsável</h3>
             <p>Envie mensagens somente para pessoas que autorizaram o contato. Use intervalos adequados, acompanhe o progresso e cancele a campanha caso identifique algum problema.</p>
             <p>O botão <strong>Sair</strong> desconecta a conta do WhatsApp Web e exigirá um novo QR Code no próximo acesso.</p>
+          </article>
+
+          <article class="card help-card">
+            <h3>6. Entender as métricas</h3>
+            <p>A aba <strong>Métricas</strong> considera os envios automáticos, respostas da IA, áudios e campanhas. Os indicadores “hoje” são reiniciados visualmente à meia-noite, mas o histórico local recente é preservado.</p>
+            <p>A taxa da IA compara respostas geradas com tentativas feitas ao Gemini. A taxa de falha compara envios com erro com todas as tentativas do dia. O tempo de pausa soma apenas as esperas realmente cumpridas entre disparos.</p>
+          </article>
+
+          <article class="card help-card developer-help-card">
+            <h3>Sobre o sistema</h3>
+            <p><strong>TurboWhats</strong> — sistema desenvolvido por <strong>Henrique Louro</strong>.</p>
+            <a href="https://wa.me/5521981682922" target="_blank" rel="noreferrer">Contato do desenvolvedor: 21981682922</a>
+            <p class="rights-notice">© 2026 Henrique Louro. Todos os direitos reservados a Henrique Louro.</p>
           </article>
         </div>
       </section>
@@ -537,6 +651,14 @@
                 <span class="ai-option-copy">
                   <strong>Responder também em áudio</strong>
                   <small>Envia texto e áudio quando a chave de voz estiver configurada.</small>
+                </span>
+              </label>
+              <label class="checkbox-label ai-option-tile">
+                <input type="checkbox" id="simulatedTypingEnabled" checked>
+                <span class="checkbox-custom"></span>
+                <span class="ai-option-copy">
+                  <strong>Digitação simulada</strong>
+                  <small>Exibe “digitando...” por um tempo natural antes das respostas automáticas.</small>
                 </span>
               </label>
             </div>
@@ -637,7 +759,8 @@
   <footer class="app-footer">
     <div class="footer-content">
       <p><strong>TurboWhats</strong> · Atendimento inteligente para WhatsApp</p>
-      <p>Desenvolvido por Henrique Louro · © 2026</p>
+      <p><strong>Sistema desenvolvido por Henrique Louro</strong> · <a href="https://wa.me/5521981682922" target="_blank" rel="noreferrer">Contato: 21981682922</a></p>
+      <p>© 2026 Henrique Louro · Todos os direitos reservados a Henrique Louro</p>
     </div>
   </footer>
 
