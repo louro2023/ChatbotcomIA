@@ -4,6 +4,55 @@ async function testAiApiKey(key) {
 
 let editingIdx = null;
 
+function askConfirmation(message, options = {}) {
+  const dialog = document.getElementById('confirmationDialog');
+  const messageElement = document.getElementById('confirmationDialogMessage');
+  const cancelButton = document.getElementById('confirmationDialogCancel');
+  const confirmButton = document.getElementById('confirmationDialogConfirm');
+  const previouslyFocused = document.activeElement;
+  const preferredFocusId = options.focusAfter || '';
+
+  if (!dialog || dialog.open) return Promise.resolve(false);
+  messageElement.textContent = message;
+  confirmButton.textContent = options.confirmLabel || 'Confirmar';
+  confirmButton.className = options.danger === false ? 'btn btn-primary' : 'btn btn-danger';
+
+  return new Promise(resolve => {
+    let completed = false;
+    const restoreFocus = () => {
+      window.focus();
+      const preferred = preferredFocusId ? document.getElementById(preferredFocusId) : null;
+      const target = preferred || (previouslyFocused?.isConnected ? previouslyFocused : null);
+      if (target && !target.disabled) target.focus({ preventScroll: true });
+    };
+    const finish = confirmed => {
+      if (completed) return;
+      completed = true;
+      cancelButton.removeEventListener('click', cancel);
+      confirmButton.removeEventListener('click', confirm);
+      dialog.removeEventListener('cancel', handleCancel);
+      dialog.removeEventListener('close', handleClose);
+      if (dialog.open) dialog.close();
+      resolve(confirmed);
+      setTimeout(restoreFocus, 0);
+    };
+    const cancel = () => finish(false);
+    const confirm = () => finish(true);
+    const handleCancel = event => {
+      event.preventDefault();
+      finish(false);
+    };
+    const handleClose = () => finish(false);
+
+    cancelButton.addEventListener('click', cancel);
+    confirmButton.addEventListener('click', confirm);
+    dialog.addEventListener('cancel', handleCancel);
+    dialog.addEventListener('close', handleClose);
+    dialog.showModal();
+    cancelButton.focus();
+  });
+}
+
 function updateAiEnabledDisplay(enabled) {
   const status = document.getElementById('aiMasterStatus');
   const history = document.getElementById('aiUseConversation');
@@ -139,7 +188,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   const btnSair = document.getElementById('btnSair');
   if (btnSair) {
     btnSair.onclick = async () => {
-      const confirmed = confirm('Sair desconectará esta conta do WhatsApp Web e exigirá um novo QR Code no próximo acesso. Deseja continuar?');
+      const confirmed = await askConfirmation('Sair desconectará esta conta do WhatsApp Web e exigirá um novo QR Code no próximo acesso. Deseja continuar?', { confirmLabel: 'Sair' });
       if (!confirmed) return;
 
       btnSair.disabled = true;
@@ -184,7 +233,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   const btnResetWhatsApp = document.getElementById('btnResetWhatsApp');
   if (btnResetWhatsApp) {
     btnResetWhatsApp.onclick = async () => {
-      const confirmed = confirm('Resetar a conexão desconectará o WhatsApp atual e exibirá um novo QR Code. Deseja continuar?');
+      const confirmed = await askConfirmation('Resetar a conexão desconectará o WhatsApp atual e exibirá um novo QR Code. Deseja continuar?', { confirmLabel: 'Resetar' });
       if (!confirmed) return;
 
       btnResetWhatsApp.disabled = true;
@@ -231,6 +280,10 @@ window.addEventListener('DOMContentLoaded', async () => {
   await renderGeminiUsage();
   await renderBulkContacts();
   await loadBulkDelaySettings();
+  await loadEmailSettings();
+  await renderEmailContacts();
+  await loadInstagramSettings();
+  await refreshInstagramStatus();
   await renderMetrics();
   window.setInterval(renderGeminiUsage, 15000);
   window.setInterval(renderMetrics, 10000);
@@ -421,6 +474,250 @@ async function writeConfig(newCfg) {
     throw new Error(result?.error || 'Não foi possível salvar a configuração.');
   }
 }
+
+function setInstagramFeedback(type, message) {
+  const feedback = document.getElementById('instagramConfigFeedback');
+  if (!feedback) return;
+  feedback.className = `bulk-import-feedback ${type || ''}`.trim();
+  feedback.textContent = message || '';
+}
+
+function updateInstagramSessionDisplay(loggedIn, message) {
+  const status = document.getElementById('instagramSessionStatus');
+  if (!status) return;
+  status.className = `instagram-session-status ${loggedIn ? 'active' : 'inactive'}`;
+  status.textContent = message || (loggedIn ? 'Instagram conectado' : 'Sessão não verificada');
+}
+
+function updateInstagramMonitorDisplay(data = {}) {
+  const active = data.active === true;
+  const status = document.getElementById('instagramMonitorStatus');
+  status.className = `instagram-status ${active ? 'active' : 'inactive'}`;
+  status.textContent = active ? 'Monitor ativo' : 'Monitor inativo';
+  document.getElementById('instagramStart').disabled = active;
+  document.getElementById('instagramStop').disabled = !active;
+  document.getElementById('instagramProcessVisible').disabled = !active;
+  if (typeof data.loggedIn === 'boolean') updateInstagramSessionDisplay(data.loggedIn, data.loggedIn ? 'Instagram conectado' : 'Login necessário');
+  if (Number.isFinite(data.scanned)) document.getElementById('instagramScannedCount').textContent = formatUsageNumber(data.scanned);
+  if (Number.isFinite(data.matches)) document.getElementById('instagramMatchCount').textContent = formatUsageNumber(data.matches);
+  if (Number.isFinite(data.commentsSent)) document.getElementById('instagramCommentCount').textContent = formatUsageNumber(data.commentsSent);
+  if (Number.isFinite(data.directsSent)) document.getElementById('instagramDirectCount').textContent = formatUsageNumber(data.directsSent);
+  if (data.message) document.getElementById('instagramMonitorMessage').textContent = data.message;
+}
+
+function appendInstagramLog(data = {}) {
+  const log = document.getElementById('instagramActivityLog');
+  if (!log || !data.message) return;
+  log.querySelector('.instagram-log-empty')?.remove();
+  const line = document.createElement('div');
+  line.className = `instagram-log-line ${data.type || 'info'}`;
+  const time = document.createElement('time');
+  const parsedDate = data.timestamp ? new Date(data.timestamp) : new Date();
+  time.textContent = Number.isNaN(parsedDate.getTime()) ? 'Agora' : parsedDate.toLocaleTimeString('pt-BR');
+  const message = document.createElement('span');
+  message.textContent = data.message;
+  line.append(time, message);
+  log.appendChild(line);
+  while (log.children.length > 200) log.firstElementChild?.remove();
+  log.scrollTop = log.scrollHeight;
+}
+
+function readInstagramForm() {
+  return {
+    postUrl: document.getElementById('instagramPostUrl').value.trim(),
+    keywords: document.getElementById('instagramKeywords').value.trim(),
+    replyComment: document.getElementById('instagramReplyComment').checked,
+    sendDirect: document.getElementById('instagramSendDirect').checked,
+    message: document.getElementById('instagramMessage').value.trim(),
+    intervalSeconds: Math.max(15, Math.min(300, Number(document.getElementById('instagramMonitorInterval').value) || 20))
+  };
+}
+
+function validateInstagramForm(settings) {
+  if (!/^https:\/\/(?:www\.)?instagram\.com\/(?:p|reel)\/[A-Za-z0-9_-]+\/?(?:[?#].*)?$/i.test(settings.postUrl)) {
+    return 'Informe um link válido de publicação ou Reel do Instagram.';
+  }
+  if (!settings.keywords.split(/[\n,;]+/).some(keyword => keyword.trim())) return 'Cadastre pelo menos uma palavra-chave.';
+  if (!settings.replyComment && !settings.sendDirect) return 'Ative a resposta no comentário, o envio por Direct ou as duas opções.';
+  if (!settings.message) return 'Digite a mensagem que será enviada.';
+  return '';
+}
+
+async function saveInstagramSettings(showFeedback = true) {
+  const settings = readInstagramForm();
+  const validationError = validateInstagramForm(settings);
+  if (validationError) throw new Error(validationError);
+  const cfg = await readConfig();
+  cfg.instagramPostUrl = settings.postUrl;
+  cfg.instagramKeywords = settings.keywords;
+  cfg.instagramReplyComment = settings.replyComment;
+  cfg.instagramSendDirect = settings.sendDirect;
+  cfg.instagramMessage = settings.message;
+  cfg.instagramMonitorIntervalSeconds = settings.intervalSeconds;
+  await writeConfig(cfg);
+  document.getElementById('instagramMonitorInterval').value = String(settings.intervalSeconds);
+  if (showFeedback) setInstagramFeedback('success', 'Configuração do Instagram salva neste computador.');
+  return settings;
+}
+
+async function loadInstagramSettings() {
+  const cfg = await readConfig();
+  document.getElementById('instagramPostUrl').value = cfg.instagramPostUrl || '';
+  document.getElementById('instagramKeywords').value = cfg.instagramKeywords || '';
+  document.getElementById('instagramReplyComment').checked = cfg.instagramReplyComment !== false;
+  document.getElementById('instagramSendDirect').checked = cfg.instagramSendDirect === true;
+  document.getElementById('instagramMessage').value = cfg.instagramMessage || '';
+  document.getElementById('instagramMonitorInterval').value = Number(cfg.instagramMonitorIntervalSeconds) || 20;
+}
+
+async function refreshInstagramStatus() {
+  try {
+    const result = await window.electronAPI.getInstagramStatus();
+    if (result?.ok) updateInstagramMonitorDisplay(result);
+  } catch (error) {
+    updateInstagramSessionDisplay(false, 'Não foi possível verificar');
+    setInstagramFeedback('error', error.message || String(error));
+  }
+}
+
+document.getElementById('instagramConfigForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  const button = document.getElementById('instagramSaveConfig');
+  button.disabled = true;
+  button.textContent = 'Salvando...';
+  try {
+    await saveInstagramSettings(true);
+  } catch (error) {
+    setInstagramFeedback('error', error.message || String(error));
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Salvar configuração';
+  }
+});
+
+document.getElementById('instagramOpenLogin').addEventListener('click', async () => {
+  const button = document.getElementById('instagramOpenLogin');
+  button.disabled = true;
+  button.textContent = 'Abrindo Instagram...';
+  setInstagramFeedback('loading', 'Preparando uma janela segura e separada para o Instagram...');
+  try {
+    const result = await window.electronAPI.openInstagramLogin();
+    if (!result?.ok) throw new Error(result?.error || 'Não foi possível abrir o Instagram.');
+    updateInstagramSessionDisplay(result.loggedIn, result.loggedIn ? 'Instagram conectado' : 'Aguardando login');
+    setInstagramFeedback('success', result.loggedIn
+      ? 'A sessão salva foi encontrada. Você já pode iniciar o bot.'
+      : 'Faça login na janela aberta. Quando concluir, volte ao TurboWhats e clique em Verificar sessão.');
+  } catch (error) {
+    setInstagramFeedback('error', error.message || String(error));
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Abrir Instagram para login';
+  }
+});
+
+document.getElementById('instagramCheckSession').addEventListener('click', async () => {
+  const button = document.getElementById('instagramCheckSession');
+  button.disabled = true;
+  button.textContent = 'Verificando...';
+  try {
+    const result = await window.electronAPI.checkInstagramSession();
+    if (!result?.ok) throw new Error(result?.error || 'Não foi possível verificar a sessão.');
+    updateInstagramSessionDisplay(result.loggedIn, result.loggedIn ? 'Instagram conectado' : 'Login não identificado');
+    setInstagramFeedback(result.loggedIn ? 'success' : 'error', result.loggedIn
+      ? 'Login confirmado. A sessão está pronta para o monitoramento.'
+      : 'O login ainda não foi identificado. Conclua o acesso na janela do Instagram.');
+  } catch (error) {
+    updateInstagramSessionDisplay(false, 'Falha na verificação');
+    setInstagramFeedback('error', error.message || String(error));
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Verificar sessão';
+  }
+});
+
+document.getElementById('instagramStart').addEventListener('click', async () => {
+  if (!document.getElementById('instagramConsent').checked) {
+    setInstagramFeedback('error', 'Confirme o uso autorizado e o cumprimento das regras do Instagram antes de iniciar.');
+    return;
+  }
+  const button = document.getElementById('instagramStart');
+  button.disabled = true;
+  button.textContent = 'Iniciando...';
+  try {
+    const settings = await saveInstagramSettings(false);
+    const result = await window.electronAPI.startInstagramMonitor(settings);
+    if (!result?.ok) throw new Error(result?.error || 'Não foi possível iniciar o bot.');
+    updateInstagramMonitorDisplay({ active: true, loggedIn: true, postUrl: result.postUrl, message: 'Abrindo a publicação configurada...' });
+    setInstagramFeedback('success', 'Bot iniciado em segundo plano. Mantenha apenas o TurboWhats aberto; o navegador do Instagram ficará oculto.');
+  } catch (error) {
+    updateInstagramMonitorDisplay({ active: false });
+    setInstagramFeedback('error', error.message || String(error));
+  } finally {
+    button.textContent = 'Iniciar bot';
+    if (!document.getElementById('instagramStop').disabled) button.disabled = true;
+    else button.disabled = false;
+  }
+});
+
+document.getElementById('instagramStop').addEventListener('click', async () => {
+  const button = document.getElementById('instagramStop');
+  button.disabled = true;
+  button.textContent = 'Parando...';
+  try {
+    const result = await window.electronAPI.stopInstagramMonitor();
+    if (!result?.ok) throw new Error(result?.error || 'Não foi possível parar o bot.');
+    document.getElementById('instagramMonitorMessage').textContent = 'Interrompendo o monitoramento...';
+  } catch (error) {
+    setInstagramFeedback('error', error.message || String(error));
+    button.disabled = false;
+  } finally {
+    button.textContent = 'Parar bot';
+  }
+});
+
+document.getElementById('instagramProcessVisible').addEventListener('click', async () => {
+  const confirmed = await askConfirmation(
+    'Reprocessar os comentários que estão visíveis nesta publicação? O TurboWhats tentará somente as ações que ainda não foram concluídas para cada perfil.',
+    { confirmLabel: 'Reprocessar' }
+  );
+  if (!confirmed) return;
+  const button = document.getElementById('instagramProcessVisible');
+  button.disabled = true;
+  button.textContent = 'Reprocessando...';
+  try {
+    const result = await window.electronAPI.processVisibleInstagramComments();
+    if (!result?.ok) throw new Error(result?.error || 'Não foi possível reprocessar os comentários.');
+    setInstagramFeedback('success', 'Reprocessamento solicitado. Acompanhe a resposta pública e o Direct no quadro Atividade.');
+    document.getElementById('instagramMonitorMessage').textContent = 'Reprocessando agora os comentários visíveis...';
+  } catch (error) {
+    setInstagramFeedback('error', error.message || String(error));
+  } finally {
+    button.textContent = 'Reprocessar comentários visíveis';
+    button.disabled = document.getElementById('instagramStop').disabled;
+  }
+});
+
+document.querySelectorAll('.instagram-tag-chip').forEach(button => {
+  button.addEventListener('click', () => {
+    const textarea = document.getElementById('instagramMessage');
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    textarea.setRangeText(button.dataset.tag || '', start, end, 'end');
+    textarea.focus();
+  });
+});
+
+document.getElementById('instagramClearLog').addEventListener('click', () => {
+  const log = document.getElementById('instagramActivityLog');
+  log.replaceChildren();
+  const empty = document.createElement('div');
+  empty.className = 'instagram-log-empty';
+  empty.textContent = 'Nenhuma atividade registrada nesta sessão.';
+  log.appendChild(empty);
+});
+
+window.electronAPI.onInstagramStatus(updateInstagramMonitorDisplay);
+window.electronAPI.onInstagramLog(appendInstagramLog);
 
 // API Key
 async function loadAiApiKey() {
@@ -954,11 +1251,11 @@ function setBulkRunning(running) {
   bulkRunning = running;
   document.getElementById('bulkStart').disabled = running;
   document.getElementById('bulkCancel').style.display = running ? '' : 'none';
-  document.getElementById('bulkContactForm').querySelectorAll('input, select, button').forEach(element => {
-    element.disabled = running;
-  });
+  document.getElementById('bulkSaveContact').disabled = running;
   document.getElementById('bulkImportContacts').disabled = running;
   document.getElementById('bulkImportWhatsApp').disabled = running;
+  document.getElementById('bulkSelectAll').disabled = running;
+  document.querySelectorAll('#bulkContactsList input, #bulkContactsList button').forEach(element => { element.disabled = running; });
   document.getElementById('bulkDeleteSelected').disabled = running || bulkSelectedIds.size === 0;
 }
 
@@ -1160,7 +1457,7 @@ document.getElementById('bulkDeleteSelected').addEventListener('click', async ()
   const selectedContacts = contacts.filter(contact => bulkSelectedIds.has(contact.id));
   if (!selectedContacts.length) return;
 
-  const confirmed = confirm(`Excluir ${selectedContacts.length} contato${selectedContacts.length === 1 ? '' : 's'} selecionado${selectedContacts.length === 1 ? '' : 's'}? Esta ação não pode ser desfeita.`);
+  const confirmed = await askConfirmation(`Excluir ${selectedContacts.length} contato${selectedContacts.length === 1 ? '' : 's'} selecionado${selectedContacts.length === 1 ? '' : 's'}? Esta ação não pode ser desfeita.`, { confirmLabel: 'Excluir', focusAfter: 'bulkContactName' });
   if (!confirmed) return;
 
   const button = document.getElementById('bulkDeleteSelected');
@@ -1351,4 +1648,437 @@ document.getElementById('bulkCancel').addEventListener('click', async () => {
   const result = await window.electronAPI.cancelBulkSend();
   if (!result?.ok) alert(result?.error || 'Não foi possível cancelar.');
   else document.getElementById('bulkProgressText').textContent = 'Cancelando...';
+});
+
+// --- Disparos de e-mail pelo Gmail ---
+let emailRunning = false;
+let emailAttachments = [];
+const emailSelectedIds = new Set();
+const EMAIL_MAX_INLINE_IMAGE_BYTES = 5 * 1024 * 1024;
+const EMAIL_MAX_CONTENT_BYTES = 18 * 1024 * 1024;
+
+function normalizeEmail(value) {
+  const email = String(value || '').trim().toLowerCase();
+  return email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null;
+}
+
+function setEmailFeedback(elementId, type, message) {
+  const element = document.getElementById(elementId);
+  element.className = `bulk-import-feedback ${type || ''}`.trim();
+  element.textContent = message || '';
+}
+
+function updateEmailConnectionDisplay(connected, label) {
+  const status = document.getElementById('emailConnectionStatus');
+  status.className = `email-connection-status ${connected ? 'active' : 'inactive'}`;
+  status.textContent = label || (connected ? 'Configuração salva' : 'Não conectado');
+}
+
+async function loadEmailSettings() {
+  const cfg = await readConfig();
+  document.getElementById('emailSenderName').value = cfg.emailSenderName || '';
+  document.getElementById('emailSenderAddress').value = cfg.emailSenderAddress || '';
+  document.getElementById('emailAppPassword').value = cfg.emailAppPassword || '';
+  document.getElementById('emailDelayMin').value = Number(cfg.emailDelayMinSeconds) || 10;
+  document.getElementById('emailDelayMax').value = Number(cfg.emailDelayMaxSeconds) || 20;
+  updateEmailConnectionDisplay(Boolean(cfg.emailSenderAddress && cfg.emailAppPassword), cfg.emailSenderAddress && cfg.emailAppPassword ? 'Configuração salva' : 'Não conectado');
+}
+
+document.getElementById('emailConnectionForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  const senderName = document.getElementById('emailSenderName').value.trim();
+  const email = normalizeEmail(document.getElementById('emailSenderAddress').value);
+  const appPassword = document.getElementById('emailAppPassword').value.replace(/\s+/g, '');
+  if (!email) {
+    setEmailFeedback('emailConnectionFeedback', 'error', 'Informe um endereço de e-mail válido.');
+    return;
+  }
+  if (appPassword.length < 16) {
+    setEmailFeedback('emailConnectionFeedback', 'error', 'Informe a Senha de app de 16 caracteres gerada pelo Google.');
+    return;
+  }
+  const button = document.getElementById('emailSaveConnection');
+  button.disabled = true;
+  button.textContent = 'Testando conexão...';
+  setEmailFeedback('emailConnectionFeedback', 'loading', 'Conectando ao Gmail com TLS e validando a autenticação...');
+  try {
+    const result = await window.electronAPI.testEmailConnection({ email, appPassword });
+    if (!result?.ok) {
+      updateEmailConnectionDisplay(false, 'Falha na conexão');
+      setEmailFeedback('emailConnectionFeedback', 'error', result?.error || 'O Gmail recusou a conexão.');
+      return;
+    }
+    const cfg = await readConfig();
+    cfg.emailSenderName = senderName;
+    cfg.emailSenderAddress = email;
+    cfg.emailAppPassword = appPassword;
+    await writeConfig(cfg);
+    document.getElementById('emailAppPassword').value = appPassword;
+    updateEmailConnectionDisplay(true, 'Gmail conectado');
+    setEmailFeedback('emailConnectionFeedback', 'success', 'Conexão validada e salva. O Gmail está pronto para enviar.');
+  } catch (error) {
+    updateEmailConnectionDisplay(false, 'Falha na conexão');
+    setEmailFeedback('emailConnectionFeedback', 'error', error.message || String(error));
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Testar e salvar';
+  }
+});
+
+async function loadEmailContacts() {
+  const cfg = await readConfig();
+  return Array.isArray(cfg.emailContacts)
+    ? cfg.emailContacts.map(contact => ({
+      ...contact,
+      name: String(contact.name || '').trim() || normalizeEmail(contact.email) || String(contact.email || '').trim()
+    }))
+    : [];
+}
+
+async function saveEmailContacts(contacts) {
+  const cfg = await readConfig();
+  cfg.emailContacts = contacts;
+  await writeConfig(cfg);
+}
+
+function setEmailRunning(running) {
+  emailRunning = running;
+  document.getElementById('emailSaveConnection').disabled = running;
+  document.getElementById('emailSaveContact').disabled = running;
+  document.getElementById('emailImportContacts').disabled = running;
+  document.getElementById('emailSelectAll').disabled = running;
+  document.querySelectorAll('#emailContactsList input, #emailContactsList button').forEach(element => { element.disabled = running; });
+  document.getElementById('emailCancel').style.display = running ? '' : 'none';
+  document.getElementById('emailCancel').disabled = false;
+  document.getElementById('emailStart').disabled = running;
+  document.getElementById('emailDeleteSelected').disabled = running || emailSelectedIds.size === 0;
+}
+
+function updateEmailSelectionState(contacts) {
+  const validIds = new Set(contacts.map(contact => contact.id));
+  for (const id of emailSelectedIds) if (!validIds.has(id)) emailSelectedIds.delete(id);
+  const selectAll = document.getElementById('emailSelectAll');
+  selectAll.checked = contacts.length > 0 && contacts.every(contact => emailSelectedIds.has(contact.id));
+  selectAll.indeterminate = contacts.some(contact => emailSelectedIds.has(contact.id)) && !selectAll.checked;
+  const count = contacts.filter(contact => emailSelectedIds.has(contact.id)).length;
+  const button = document.getElementById('emailDeleteSelected');
+  button.disabled = emailRunning || count === 0;
+  button.textContent = count ? `Excluir selecionados (${count})` : 'Excluir selecionados';
+}
+
+async function renderEmailContacts() {
+  const contacts = await loadEmailContacts();
+  const list = document.getElementById('emailContactsList');
+  list.replaceChildren();
+  if (!contacts.length) {
+    const empty = document.createElement('div');
+    empty.className = 'empty-state';
+    empty.textContent = 'Nenhum destinatário cadastrado.';
+    list.appendChild(empty);
+  }
+  for (const contact of contacts) {
+    const row = document.createElement('div');
+    row.className = 'bulk-contact-row';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className = 'bulk-contact-select';
+    checkbox.checked = emailSelectedIds.has(contact.id);
+    checkbox.disabled = emailRunning;
+    checkbox.addEventListener('change', () => {
+      if (checkbox.checked) emailSelectedIds.add(contact.id);
+      else emailSelectedIds.delete(contact.id);
+      updateEmailSelectionState(contacts);
+    });
+    const info = document.createElement('div');
+    info.className = 'bulk-contact-info';
+    const name = document.createElement('strong');
+    name.textContent = contact.name || contact.email;
+    const address = document.createElement('span');
+    address.textContent = contact.email;
+    info.append(name, address);
+    const actions = document.createElement('div');
+    actions.className = 'bulk-contact-actions';
+    const edit = document.createElement('button');
+    edit.type = 'button';
+    edit.className = 'btn btn-secondary btn-small';
+    edit.textContent = 'Editar';
+    edit.disabled = emailRunning;
+    edit.addEventListener('click', () => {
+      document.getElementById('emailContactId').value = contact.id;
+      document.getElementById('emailContactName').value = contact.name || '';
+      document.getElementById('emailContactAddress').value = contact.email || '';
+      document.getElementById('emailSaveContact').textContent = 'Salvar';
+    });
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'btn btn-danger btn-small';
+    remove.textContent = 'Excluir';
+    remove.disabled = emailRunning;
+    remove.addEventListener('click', async () => {
+      await saveEmailContacts(contacts.filter(item => item.id !== contact.id));
+      emailSelectedIds.delete(contact.id);
+      await renderEmailContacts();
+    });
+    actions.append(edit, remove);
+    row.append(checkbox, info, actions);
+    list.appendChild(row);
+  }
+  document.getElementById('emailContactCount').textContent = `${contacts.length} destinatário${contacts.length === 1 ? '' : 's'}`;
+  updateEmailSelectionState(contacts);
+}
+
+document.getElementById('emailContactForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  const id = document.getElementById('emailContactId').value;
+  const name = document.getElementById('emailContactName').value.trim();
+  const email = normalizeEmail(document.getElementById('emailContactAddress').value);
+  if (!email) return alert('Informe um endereço de e-mail válido.');
+  const contacts = await loadEmailContacts();
+  if (contacts.some(contact => normalizeEmail(contact.email) === email && contact.id !== id)) return alert('Este e-mail já está cadastrado.');
+  const savedContact = { id: id || crypto.randomUUID(), name: name || email, email };
+  if (id) {
+    const index = contacts.findIndex(contact => contact.id === id);
+    if (index >= 0) contacts[index] = savedContact;
+  } else {
+    contacts.push(savedContact);
+  }
+  await saveEmailContacts(contacts);
+  event.target.reset();
+  document.getElementById('emailContactId').value = '';
+  document.getElementById('emailSaveContact').textContent = 'Adicionar';
+  await renderEmailContacts();
+});
+
+document.getElementById('emailSelectAll').addEventListener('change', async event => {
+  const contacts = await loadEmailContacts();
+  if (event.target.checked) contacts.forEach(contact => emailSelectedIds.add(contact.id));
+  else emailSelectedIds.clear();
+  await renderEmailContacts();
+});
+
+document.getElementById('emailDeleteSelected').addEventListener('click', async () => {
+  const contacts = await loadEmailContacts();
+  const selected = contacts.filter(contact => emailSelectedIds.has(contact.id));
+  if (!selected.length) return;
+  const confirmed = await askConfirmation(`Excluir ${selected.length} destinatário${selected.length === 1 ? '' : 's'} somente da lista do TurboWhats?`, { confirmLabel: 'Excluir', focusAfter: 'emailContactAddress' });
+  if (!confirmed) return;
+  await saveEmailContacts(contacts.filter(contact => !emailSelectedIds.has(contact.id)));
+  emailSelectedIds.clear();
+  await renderEmailContacts();
+  setEmailFeedback('emailImportFeedback', 'success', `${selected.length} destinatário${selected.length === 1 ? '' : 's'} excluído${selected.length === 1 ? '' : 's'} do sistema.`);
+});
+
+document.getElementById('emailImportContacts').addEventListener('click', async () => {
+  const button = document.getElementById('emailImportContacts');
+  button.disabled = true;
+  setEmailFeedback('emailImportFeedback', 'loading', 'Abrindo e validando a planilha...');
+  try {
+    const result = await window.electronAPI.importEmailContacts();
+    if (!result?.ok) return setEmailFeedback('emailImportFeedback', 'error', result?.error || 'Falha na importação.');
+    const contacts = await loadEmailContacts();
+    const existing = new Set(contacts.map(contact => normalizeEmail(contact.email)).filter(Boolean));
+    let added = 0;
+    for (const imported of result.contacts || []) {
+      const email = normalizeEmail(imported.email);
+      if (!email || existing.has(email)) continue;
+      contacts.push({ id: crypto.randomUUID(), name: String(imported.name || '').trim() || email, email });
+      existing.add(email);
+      added++;
+    }
+    if (added) await saveEmailContacts(contacts);
+    await renderEmailContacts();
+    setEmailFeedback('emailImportFeedback', 'success', `${added} destinatário${added === 1 ? '' : 's'} importado${added === 1 ? '' : 's'}.`);
+  } catch (error) {
+    setEmailFeedback('emailImportFeedback', 'error', error.message || String(error));
+  } finally {
+    button.disabled = false;
+  }
+});
+
+function formatFileSize(bytes) {
+  const value = Math.max(0, Number(bytes) || 0);
+  if (value >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1).replace('.', ',')} MB`;
+  return `${Math.max(1, Math.round(value / 1024))} KB`;
+}
+
+function renderEmailAttachments() {
+  const list = document.getElementById('emailAttachmentsList');
+  list.replaceChildren();
+  const total = emailAttachments.reduce((sum, file) => sum + Number(file.size || 0), 0);
+  document.getElementById('emailAttachmentSummary').textContent = emailAttachments.length
+    ? `${emailAttachments.length} arquivo${emailAttachments.length === 1 ? '' : 's'} • ${formatFileSize(total)}`
+    : 'Nenhum documento anexado';
+  emailAttachments.forEach(file => {
+    const row = document.createElement('div');
+    row.className = 'email-attachment-item';
+    const label = document.createElement('span');
+    label.textContent = `📎 ${file.name} • ${formatFileSize(file.size)}`;
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.textContent = 'Remover';
+    remove.addEventListener('click', () => {
+      emailAttachments = emailAttachments.filter(item => item.path !== file.path);
+      renderEmailAttachments();
+    });
+    row.append(label, remove);
+    list.appendChild(row);
+  });
+}
+
+document.getElementById('emailSelectAttachments').addEventListener('click', async () => {
+  const result = await window.electronAPI.selectEmailAttachments();
+  if (!result?.ok) return alert(result?.error || 'Não foi possível selecionar os documentos.');
+  const byPath = new Map(emailAttachments.map(file => [file.path, file]));
+  for (const file of result.files || []) byPath.set(file.path, file);
+  emailAttachments = [...byPath.values()].slice(0, 10);
+  renderEmailAttachments();
+});
+
+function insertEmailNodeAtCursor(node) {
+  const editor = document.getElementById('emailBodyEditor');
+  editor.focus();
+  const selection = window.getSelection();
+  let range = selection.rangeCount ? selection.getRangeAt(0) : null;
+  if (!range || !editor.contains(range.commonAncestorContainer)) {
+    range = document.createRange();
+    range.selectNodeContents(editor);
+    range.collapse(false);
+  }
+  range.deleteContents();
+  range.insertNode(node);
+  range.setStartAfter(node);
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+document.getElementById('emailBodyEditor').addEventListener('paste', async event => {
+  const imageFiles = [...(event.clipboardData?.items || [])]
+    .filter(item => item.kind === 'file' && item.type.startsWith('image/'))
+    .map(item => item.getAsFile())
+    .filter(Boolean);
+  if (!imageFiles.length) return;
+  event.preventDefault();
+  for (const file of imageFiles) {
+    if (file.size > EMAIL_MAX_INLINE_IMAGE_BYTES) {
+      alert(`A imagem ${file.name || 'colada'} ultrapassa 5 MB e não foi inserida.`);
+      continue;
+    }
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+    const image = document.createElement('img');
+    image.src = dataUrl;
+    image.alt = file.name || 'Imagem colada';
+    insertEmailNodeAtCursor(image);
+  }
+});
+
+document.querySelectorAll('.email-editor-toolbar [data-command]').forEach(button => {
+  button.addEventListener('click', () => {
+    document.getElementById('emailBodyEditor').focus();
+    document.execCommand(button.dataset.command, false);
+  });
+});
+
+document.getElementById('emailCreateLink').addEventListener('click', () => {
+  const url = prompt('Cole o endereço completo do link (https://...):');
+  if (!url) return;
+  if (!/^https?:\/\//i.test(url)) return alert('O link deve começar com http:// ou https://.');
+  document.getElementById('emailBodyEditor').focus();
+  document.execCommand('createLink', false, url);
+});
+
+document.querySelectorAll('.email-tag-chip').forEach(button => {
+  button.addEventListener('click', () => {
+    insertEmailNodeAtCursor(document.createTextNode(button.dataset.tag || ''));
+  });
+});
+
+function getEmailDelayRange() {
+  const min = Math.round(Number(document.getElementById('emailDelayMin').value));
+  const max = Math.round(Number(document.getElementById('emailDelayMax').value));
+  return Number.isFinite(min) && Number.isFinite(max) && min >= 3 && max <= 600 && min <= max ? { min, max } : null;
+}
+
+for (const fieldId of ['emailDelayMin', 'emailDelayMax']) {
+  document.getElementById(fieldId).addEventListener('change', async () => {
+    const range = getEmailDelayRange();
+    if (!range) return;
+    const cfg = await readConfig();
+    cfg.emailDelayMinSeconds = range.min;
+    cfg.emailDelayMaxSeconds = range.max;
+    await writeConfig(cfg);
+  });
+}
+
+window.electronAPI.onEmailProgress(data => {
+  document.getElementById('emailProgressArea').style.display = '';
+  document.getElementById('emailProgressText').textContent = data.error ? 'Envio com falha' : 'Enviando e-mails';
+  document.getElementById('emailProgressStats').textContent = `${data.current}/${data.total} • ${data.sent} enviados • ${data.failed} falhas`;
+  document.getElementById('emailProgressBar').style.width = `${Math.round((data.current / data.total) * 100)}%`;
+  const line = document.createElement('div');
+  line.className = data.error ? 'bulk-log-error' : 'bulk-log-success';
+  const label = data.contact.name || data.contact.email;
+  const waitText = Number.isFinite(data.nextDelaySeconds) ? ` • próximo envio em ${data.nextDelaySeconds}s` : '';
+  line.textContent = data.error ? `✕ ${label}: ${data.error}${waitText}` : `✓ ${label}${waitText}`;
+  const log = document.getElementById('emailProgressLog');
+  log.appendChild(line);
+  log.scrollTop = log.scrollHeight;
+  void renderMetrics();
+});
+
+document.getElementById('emailStart').addEventListener('click', async () => {
+  if (!document.getElementById('emailConsent').checked) return alert('Confirme que os destinatários autorizaram o recebimento dos e-mails.');
+  const cfg = await readConfig();
+  if (!cfg.emailSenderAddress || !cfg.emailAppPassword) return alert('Teste e salve a conexão do Gmail antes de iniciar.');
+  const allContacts = await loadEmailContacts();
+  const contacts = allContacts.filter(contact => emailSelectedIds.has(contact.id));
+  if (!contacts.length) return alert('Selecione pelo menos um destinatário.');
+  if (contacts.length > 500) return alert('O Gmail pessoal permite até 500 envios por dia. Selecione no máximo 500 destinatários.');
+  const subject = document.getElementById('emailSubject').value.trim();
+  const editor = document.getElementById('emailBodyEditor');
+  const html = editor.innerHTML;
+  if (!subject) return alert('Digite o assunto do e-mail.');
+  if (!editor.textContent.trim() && !editor.querySelector('img')) return alert('Digite o conteúdo do e-mail.');
+  if (new TextEncoder().encode(html).length > EMAIL_MAX_CONTENT_BYTES) return alert('O conteúdo ultrapassa 18 MB. Reduza as imagens coladas.');
+  const range = getEmailDelayRange();
+  if (!range) return alert('Informe um intervalo válido entre 3 e 600 segundos. O valor “De” não pode ser maior que “Até”.');
+  cfg.emailDelayMinSeconds = range.min;
+  cfg.emailDelayMaxSeconds = range.max;
+  await writeConfig(cfg);
+  document.getElementById('emailProgressArea').style.display = '';
+  document.getElementById('emailProgressText').textContent = 'Preparando campanha...';
+  document.getElementById('emailProgressStats').textContent = `0/${contacts.length}`;
+  document.getElementById('emailProgressBar').style.width = '0%';
+  document.getElementById('emailProgressLog').replaceChildren();
+  setEmailRunning(true);
+  try {
+    const result = await window.electronAPI.startEmailSend({
+      contacts,
+      subject,
+      html,
+      attachments: emailAttachments.map(file => file.path),
+      delayMinSeconds: range.min,
+      delayMaxSeconds: range.max
+    });
+    if (!result?.ok) return alert(result?.error || 'Não foi possível iniciar os envios.');
+    document.getElementById('emailProgressText').textContent = result.cancelled ? 'Campanha cancelada' : 'Campanha concluída';
+    document.getElementById('emailProgressStats').textContent = `${result.sent} enviados • ${result.failed} falhas`;
+  } catch (error) {
+    alert(`Erro durante o envio: ${error.message}`);
+  } finally {
+    setEmailRunning(false);
+    await renderEmailContacts();
+    await renderMetrics();
+  }
+});
+
+document.getElementById('emailCancel').addEventListener('click', async () => {
+  const result = await window.electronAPI.cancelEmailSend();
+  if (!result?.ok) alert(result?.error || 'Não foi possível cancelar.');
+  else document.getElementById('emailProgressText').textContent = 'Cancelando...';
 });

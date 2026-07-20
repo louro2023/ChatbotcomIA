@@ -1,7 +1,7 @@
 {
   "name": "cchatbot",
-  "version": "1.0.9",
-  "description": "TurboWhats - atendimento inteligente para WhatsApp",
+  "version": "1.2.9",
+  "description": "TurboWhats - atendimento inteligente e campanhas por WhatsApp e email",
   "author": "Henrique Louro",
   "license": "MIT",
   "repository": {
@@ -15,7 +15,8 @@
   "main": "Electron/main.js",
   "scripts": {
     "start": "node scripts/run-electron.js",
-    "check": "node --check Electron/main.js && node --check Electron/preload.js && node --check Electron/renderer.js && node --check scripts/run-electron.js && node --check scripts/prepare-browser.js && node --check scripts/prepare-brand-assets.mjs",
+    "check": "node --check Electron/main.js && node --check Electron/preload.js && node --check Electron/renderer.js && node --check Electron/instagram-utils.js && node --check Electron/instagram-browser.js && node --check scripts/run-electron.js && node --check scripts/prepare-browser.js && node --check scripts/prepare-brand-assets.mjs && node --check scripts/test-instagram-browser.js && node --check scripts/test-instagram-ui.js && npm run test:instagram",
+    "test:instagram": "node scripts/test-instagram-utils.js && node scripts/test-instagram-browser.js && node scripts/test-instagram-ui.js",
     "smoke": "node scripts/run-electron.js --smoke-test",
     "prepare:brand": "node scripts/prepare-brand-assets.mjs",
     "prepare:browser": "node scripts/prepare-browser.js",
@@ -29,6 +30,7 @@
   },
   "dependencies": {
     "exceljs": "^4.4.0",
+    "nodemailer": "^9.0.3",
     "qrcode": "^1.5.4",
     "whatsapp-web.js": "^1.34.7"
   },

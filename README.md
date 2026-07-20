@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/versão-1.0.9-3568cf" alt="Versão 1.0.9">
+  <img src="https://img.shields.io/badge/versão-1.2.9-3568cf" alt="Versão 1.2.9">
   <img src="https://img.shields.io/badge/plataforma-Windows%20x64-0078D4" alt="Windows x64">
   <img src="https://img.shields.io/badge/Electron-43-47848F" alt="Electron 43">
   <img src="https://img.shields.io/badge/IA-Google%20Gemini-8E75B2" alt="Google Gemini">
@@ -26,7 +26,7 @@
 
 ## Visão geral
 
-O **TurboWhats** é uma aplicação desktop para Windows criada para centralizar automação de atendimento, inteligência artificial, respostas por voz e campanhas personalizadas em uma interface simples.
+O **TurboWhats** é uma aplicação desktop para Windows criada para centralizar automação de atendimento, inteligência artificial, respostas por voz e campanhas personalizadas por WhatsApp e e-mail em uma interface simples.
 
 O sistema conecta uma conta por QR Code, acompanha conversas privadas com notificações não lidas, envia a primeira resposta configurada e continua o atendimento de duas formas: por regras determinísticas ou com respostas contextuais geradas pelo Google Gemini.
 
@@ -51,7 +51,7 @@ Os principais desafios tratados pelo projeto foram:
 
 ## A solução
 
-O TurboWhats combina seis módulos em uma experiência única:
+O TurboWhats combina oito módulos em uma experiência única:
 
 | Módulo | O que entrega |
 | --- | --- |
@@ -59,6 +59,8 @@ O TurboWhats combina seis módulos em uma experiência única:
 | **Respostas** | Primeira mensagem, regras exatas e fallback quando a IA está desligada |
 | **IA & Voz** | Gemini, contexto personalizado, histórico opcional e áudio com ElevenLabs |
 | **Disparos** | Cadastro, importação direta do WhatsApp ou CSV/XLSX, tags, imagem, intervalo e progresso por contato |
+| **Disparo de Email** | Gmail com Senha de app, destinatários, editor com imagens, anexos, tags e progresso individual |
+| **Bot Instagram** | Sessão persistente, palavras-chave sem distinção de acentos, resposta pública, Direct e prevenção de duplicidade |
 | **Métricas** | Envios do dia, pausas, intervalos, falhas, respostas da IA e atividade por hora e minuto |
 | **Ajuda** | Orientações integradas sobre fluxos, chaves de API, limites e boas práticas |
 
@@ -83,6 +85,14 @@ Quando ativada, a conversa exibe **digitando...** antes de cada resposta automá
 ### Campanhas com menos erros de telefone
 
 No cadastro manual, o telefone é dividido em **País**, **DDD** e **Número**. Uma prévia mostra o formato final antes de salvar.
+
+### Campanhas de e-mail pelo Gmail
+
+O remetente conecta uma conta Gmail ou Google Workspace usando uma **Senha de app**, testada antes de ser salva e protegida pelo armazenamento seguro do sistema operacional. Cada destinatário recebe uma mensagem individual, com nome, assunto, texto, imagens coladas, documentos e tags personalizados.
+
+### Automação de comentários do Instagram
+
+O usuário entra no Instagram em uma janela exibida somente durante o login, escolhe uma publicação ou Reel e cadastra várias palavras-chave. Ao iniciar o bot, a janela é fechada e o monitor passa a funcionar oculto em segundo plano. Novos comentários podem receber uma resposta pública, uma mensagem por Direct ou as duas ações. A comparação ignora maiúsculas e acentos, enquanto um estado persistente por publicação impede repetir a mesma ação para o mesmo perfil. Um comando de recuperação permite reprocessar comentários visíveis que já estavam na tela ou ficaram sem resposta.
 
 ```text
 País: Brasil (+55)
@@ -163,6 +173,8 @@ flowchart LR
     MAIN --> WA[whatsapp-web.js]
     MAIN --> GEMINI[Google Gemini API]
     MAIN --> VOICE[ElevenLabs API]
+    MAIN --> GMAIL[Gmail SMTP com TLS]
+    MAIN --> IG[Instagram Web via Puppeteer]
     MAIN --> DATA[(Dados locais protegidos)]
     WA --> CHROME[Chrome incorporado]
 ```
@@ -175,7 +187,8 @@ flowchart LR
 | `Electron/style.css` | Design system, responsividade, estados e identidade TurboWhats |
 | `Electron/renderer.js` | Interações da interface, validação e renderização de dados |
 | `Electron/preload.js` | Contrato seguro de comunicação entre interface e processo principal |
-| `Electron/main.js` | WhatsApp, Gemini, voz, persistência, rastreamento e campanhas |
+| `Electron/main.js` | WhatsApp, Instagram, Gmail SMTP, Gemini, voz, persistência, rastreamento e campanhas |
+| `Electron/instagram-utils.js` | Normalização, validação de URLs, palavras-chave e identificadores do Instagram |
 | `scripts/` | Inicialização, preparação da marca e navegador do build |
 
 ## Decisões técnicas relevantes
@@ -187,7 +200,12 @@ flowchart LR
 - **Digitação proporcional:** calcula entre 0,9 e 6 segundos conforme o tamanho da resposta.
 - **Gemini com timeout de 90 segundos:** reduz falsos erros em conexões lentas.
 - **Até três tentativas de IA:** repete falhas temporárias com espera progressiva.
-- **Configuração local protegida:** usa `safeStorage` para chaves quando a criptografia do Windows está disponível.
+- **Configuração local protegida:** usa `safeStorage` para chaves e Senhas de app quando a criptografia do Windows está disponível.
+- **SMTP Gmail com TLS:** testa a autenticação antes de salvar e envia uma mensagem individual por destinatário.
+- **Perfil persistente do Instagram:** mantém a autenticação em uma pasta separada e nunca solicita a senha dentro do TurboWhats.
+- **Monitoramento restrito à URL:** acessa somente a publicação ou Reel configurado, sem percorrer o feed.
+- **Deduplicação por ação:** comentário e Direct possuem registros independentes por usuário e publicação.
+- **HTML higienizado:** remove scripts, eventos e URLs JavaScript antes de montar cada e-mail.
 - **ASAR e Chrome incorporado:** entrega um único executável portátil e reproduzível.
 - **Dados de produção isolados:** o portátil usa uma pasta diferente do ambiente executado pelo código-fonte.
 
@@ -199,6 +217,8 @@ flowchart LR
 | **JavaScript** | Regras de negócio e interface |
 | **HTML5 e CSS3** | Estrutura e identidade visual |
 | **whatsapp-web.js** | Sessão e troca de mensagens pelo WhatsApp Web |
+| **Puppeteer 24** | Sessão e automação do Instagram Web usando o Chrome incorporado |
+| **Nodemailer** | Autenticação SMTP, HTML, imagens incorporadas e anexos de e-mail |
 | **Google Gemini 3.5 Flash** | Respostas contextuais e conteúdo multimodal |
 | **ElevenLabs** | Conversão opcional de texto em voz |
 | **ExcelJS** | Importação de contatos CSV/XLSX |
@@ -212,6 +232,7 @@ O projeto aplica controles em várias camadas:
 - `nodeIntegration` desativado no renderer;
 - `contextIsolation` e sandbox ativados;
 - funções IPC expostas por uma API mínima no preload;
+- login do Instagram realizado diretamente no site, sem capturar usuário ou senha na interface do TurboWhats;
 - navegação externa limitada aos domínios autorizados;
 - chaves protegidas com `safeStorage` quando disponível;
 - configurações, sessões, logs, caches e `.env` ignorados pelo Git;
@@ -221,7 +242,7 @@ O projeto aplica controles em várias camadas:
 Boas práticas para operação:
 
 - revogue imediatamente qualquer chave publicada por engano;
-- não compartilhe `config.json` ou `whatsapp-session/`;
+- não compartilhe `config.json` ou `whatsapp-session/`, pois representam configurações e sessões desta instalação;
 - evite enviar informações sigilosas à IA sem revisar os termos do provedor;
 - envie campanhas somente para contatos que autorizaram o recebimento;
 - respeite limites, políticas e termos do WhatsApp e das APIs utilizadas.
@@ -233,7 +254,7 @@ Boas práticas para operação:
 O build local mais recente gera:
 
 ```text
-dist\TurboWhats-Portable-1.0.9.exe
+dist\TurboWhats-Portable-1.2.9.exe
 ```
 
 As versões publicadas ficam na página de [Releases](https://github.com/louro2023/ChatbotcomIA/releases).
@@ -251,10 +272,10 @@ O executável possui aproximadamente 203 MB porque inclui o ambiente Electron e 
 > [!NOTE]
 > O projeto ainda não possui certificado comercial de assinatura. O Windows SmartScreen pode exibir **Editor desconhecido** na primeira execução. Confira a origem e o hash antes de autorizar.
 
-SHA-256 do build local da versão 1.0.9:
+SHA-256 do build local da versão 1.2.9:
 
 ```text
-A9F15DE163D2F5250DE43BD8CD0DA6E81C439DA9D657069D616C4FCF88640A79
+EA58C2A3C4E568018EF47625611D0B3767C3F939BBC4A0C01D839B87F494CC8B
 ```
 
 ### Executar pelo código-fonte
@@ -345,6 +366,54 @@ Colunas reconhecidas na importação:
 
 Números brasileiros importados com 10 ou 11 dígitos recebem `55` automaticamente. Para outros países, inclua o código internacional.
 
+## Disparo de Email
+
+O módulo de e-mail utiliza SMTP seguro do Gmail e permite:
+
+- testar e salvar o e-mail, nome do remetente e Senha de app;
+- cadastrar o nome do responsável por cada endereço;
+- adicionar ou importar destinatários de arquivos CSV ou XLSX com colunas `Nome` e `Email`; quando o nome não for informado, o próprio e-mail será usado como nome do destinatário;
+- selecionar ou excluir destinatários em grupo;
+- personalizar o assunto e o conteúdo com `{Nome}`, `{PrimeiroNome}`, `{Email}`, `{Data}` e `{Hora}`;
+- formatar o texto e colar imagens diretamente no editor com `Ctrl+V`;
+- anexar até 10 documentos, respeitando o limite total de 18 MB;
+- definir intervalos aleatórios entre 3 e 600 segundos;
+- acompanhar sucessos e falhas e cancelar a campanha.
+
+Para criar uma Senha de app, ative a verificação em duas etapas da Conta Google e abra [Senhas de app](https://myaccount.google.com/apppasswords). A senha normal do Gmail não deve ser informada ao TurboWhats. O Google pode indisponibilizar Senhas de app em contas organizacionais, contas protegidas pelo Advanced Protection ou contas configuradas somente com chaves de segurança.
+
+O Gmail pessoal limita o envio a até 500 mensagens por dia e pode suspender novos envios por algumas horas quando a conta ultrapassa a cota ou gera muitos retornos. Consulte os [limites oficiais do Gmail](https://support.google.com/mail/answer/22839) e envie somente para destinatários que autorizaram o contato.
+
+## Bot do Instagram
+
+O módulo utiliza o mesmo Chrome incorporado no portátil, controlado pelo Puppeteer. A conta possui um perfil de navegador separado do WhatsApp e continua autenticada enquanto a sessão do Instagram permanecer válida.
+
+Fluxo de configuração:
+
+1. Clique em **Abrir Instagram para login** e faça o acesso diretamente no Instagram Web.
+2. Volte ao TurboWhats e clique em **Verificar sessão**.
+3. Cole uma URL no formato `https://www.instagram.com/p/CODIGO/` ou `https://www.instagram.com/reel/CODIGO/`.
+4. Cadastre até 100 palavras-chave separadas por vírgula, ponto e vírgula ou linha.
+5. Ative a resposta no comentário, o envio por Direct ou ambos.
+6. Escreva a mensagem, confirme o uso autorizado e inicie o bot.
+
+Após o login, a janela visual é necessária somente para autenticar ou renovar uma sessão expirada. Ao iniciar o monitor, o TurboWhats fecha essa janela e reinicia o mesmo perfil do Instagram em modo oculto. Comentários e Directs continuam sendo processados em segundo plano enquanto o TurboWhats estiver aberto.
+
+O primeiro ciclo cria uma linha de base e não responde aos comentários antigos. Nos ciclos seguintes, o sistema:
+
+- considera somente comentários novos encontrados na publicação configurada;
+- normaliza letras e acentos, fazendo `currículo`, `CURRICULO` e `Currículo` corresponderem à mesma palavra;
+- ativa o fluxo quando qualquer uma das palavras estiver presente no comentário;
+- personaliza a mensagem com `{Nome}`, `{PrimeiroNome}`, `{Link}`, `{Data}` e `{Hora}`;
+- registra separadamente respostas públicas e Directs concluídos;
+- não repete a mesma ação para o mesmo usuário naquela publicação;
+- retorna à publicação após enviar um Direct e continua monitorando;
+- mantém logs, contadores e a opção de interrupção imediata.
+
+Se um comentário já visível tiver sido registrado sem envio — por exemplo, após atualizar os seletores do Instagram — use **Reprocessar comentários visíveis** com o bot ativo. O sistema reconsidera os comentários atuais e tenta apenas a resposta pública ou o Direct que ainda não constar como concluído para aquele perfil.
+
+O monitor usa a interface do Instagram Web, não a API oficial. Alterações de elementos, textos ou fluxos feitas pelo Instagram podem exigir atualização dos seletores do TurboWhats. Use a automação somente em interações esperadas e autorizadas pelos usuários.
+
 ## Painel de métricas
 
 A aba **Métricas** atualiza automaticamente e mantém os dados no próprio computador. Ela apresenta:
@@ -358,13 +427,15 @@ A aba **Métricas** atualiza automaticamente e mantém os dados no próprio comp
 - quantidade enviada na hora e no minuto atuais;
 - gráficos de distribuição por hora e dos últimos 15 minutos.
 
-Envios automáticos, respostas da IA, áudio e campanhas são contabilizados. Os indicadores diários mudam à meia-noite no horário local, enquanto o histórico técnico dos últimos 31 dias permanece salvo em `metrics.json`.
+Envios automáticos, respostas da IA, áudio, campanhas de WhatsApp, disparos de e-mail, respostas do Instagram e Directs são contabilizados. Os indicadores diários mudam à meia-noite no horário local, enquanto o histórico técnico dos últimos 31 dias permanece salvo em `metrics.json`.
 
 | Tag | Resultado |
 | --- | --- |
 | `{Nome}` | Nome completo do contato |
 | `{PrimeiroNome}` | Primeiro nome |
 | `{Telefone}` | Telefone formatado |
+| `{Email}` | Endereço cadastrado no módulo de e-mail |
+| `{Link}` | Link da publicação monitorada no Instagram |
 | `{Data}` | Data do envio em formato brasileiro |
 | `{Hora}` | Horário do envio |
 
@@ -398,6 +469,8 @@ Dados do ambiente de desenvolvimento:
 | --- | --- |
 | `config.json` | Mensagens, regras, contatos, opções e chaves protegidas |
 | `whatsapp-session/` | Sessão local do WhatsApp |
+| `instagram-session/` | Perfil local autenticado do Instagram Web |
+| `instagram-monitor-state.json` | Comentários analisados e ações concluídas por usuário/publicação |
 | `gemini-usage.json` | Contador local de solicitações e tokens |
 | `first-message-state.json` | Controle anonimizado da primeira resposta |
 | `runtime-errors.log` | Erros de execução para diagnóstico |
@@ -411,6 +484,7 @@ ChatbotcomIA/
 │   ├── assets/
 │   │   └── turbowhats-icon.png
 │   ├── index.html
+│   ├── instagram-utils.js
 │   ├── main.js
 │   ├── preload.js
 │   ├── renderer.js
@@ -418,6 +492,9 @@ ChatbotcomIA/
 ├── scripts/
 │   ├── prepare-brand-assets.mjs
 │   ├── prepare-browser.js
+│   ├── test-instagram-browser.js
+│   ├── test-instagram-ui.js
+│   ├── test-instagram-utils.js
 │   └── run-electron.js
 ├── icone.png
 ├── LICENSE
@@ -456,7 +533,7 @@ O `electron-builder` gera `dist\TurboWhats-Portable-<versão>.exe`. A compilaç�
 
 Durante a extração inicial do portátil, o empacotador exibe uma tela de abertura com a identidade TurboWhats. Assim, o usuário recebe retorno visual imediatamente após executar o arquivo, antes mesmo de o Electron estar disponível para criar a janela principal.
 
-## Testes realizados na versão 1.0.9
+## Testes realizados na versão 1.2.9
 
 - verificação de sintaxe dos processos principal, preload, renderer e scripts;
 - smoke test do Electron;
@@ -466,6 +543,25 @@ Durante a extração inicial do portátil, o empacotador exibe uma tela de abert
 - validação do sorteio de intervalos, incluindo os limites mínimo e máximo;
 - validação dos cálculos, séries horárias e indicadores do painel de métricas;
 - inspeção visual dos créditos na tela de abertura e validação do contato externo;
+- validação da conexão SMTP, configuração criptografada e mensagens de erro do Gmail;
+- testes de tags de e-mail, higienização de HTML e imagens incorporadas por `data:` URI;
+- inspeção visual da aba Disparo de Email em resolução desktop;
+- testes de URLs permitidas e rejeitadas no monitor do Instagram;
+- testes de palavras-chave sem distinção de maiúsculas ou acentos e remoção de duplicadas;
+- validação do formato atual do Instagram baseado em `div` e permalink `/p/.../c/.../`, além do formato legado baseado em listas;
+- teste real somente de leitura na publicação configurada: comentário, autor, texto, permalink, botão Responder e editor encontrados sem publicar mensagem;
+- validação dos comandos atuais de envio: `Postar` para respostas públicas e `Send`/`Enviar` para mensagens no Direct;
+- validação dos cliques reais de mouse nos controles `Responder`, `Postar` e `Send`/`Enviar`, sem manter a chamada JavaScript da página bloqueada;
+- validação da composição correta da resposta pública após a menção automática, preservando `@usuario Mensagem` sem inserir texto no meio do nome;
+- limite do protocolo do navegador e recuperação da publicação após uma falha de resposta pública;
+- teste controlado na sessão real: abertura, foco, digitação e limpeza dos editores de comentário e Direct, sem publicar nem enviar a mensagem de diagnóstico;
+- teste controlado da mesma sessão em modo headless: comentário e Direct localizados, digitados e limpos sem abrir janela nem realizar envio;
+- confirmação do envio somente depois que o Instagram retirar o texto do editor;
+- teste automatizado da aba Instagram: persistência, tags, início, contadores, logs e digitação durante o monitoramento;
+- validação geométrica da barra de tags abaixo do editor e do diálogo de confirmação centralizado na janela;
+- validação do controle persistente por comentário, usuário, publicação e tipo de ação;
+- recuperação manual de comentários visíveis anteriormente registrados, sem duplicar correspondências nem ações concluídas;
+- processamento de comentários inéditos revelados com atraso pelo Instagram, usando o início do monitoramento como limite sem liberar comentários históricos;
 - inicialização do aplicativo empacotado;
 - inspeção do conteúdo ASAR;
 - confirmação de ausência de configurações pessoais no pacote;
@@ -509,6 +605,38 @@ Durante a extração inicial do portátil, o empacotador exibe uma tela de abert
 - verifique a cota do provedor;
 - confirme que o texto foi enviado normalmente.
 
+### O Gmail não conecta
+
+- não utilize a senha normal da Conta Google;
+- ative a verificação em duas etapas e gere uma nova [Senha de app](https://myaccount.google.com/apppasswords);
+- informe o mesmo endereço usado para gerar a senha;
+- se a opção Senhas de app não aparecer, verifique se a conta é organizacional, usa Advanced Protection ou está configurada somente com chaves de segurança;
+- depois de alterar a senha principal da Conta Google, gere uma nova Senha de app.
+
+### O disparo de e-mail parou
+
+- confira o erro exibido ao lado do destinatário;
+- remova endereços inválidos e reduza o volume ou a frequência;
+- contas pessoais do Gmail podem interromper novos envios após atingir a cota diária;
+- confirme se os anexos e imagens juntos permanecem abaixo de 18 MB;
+- aguarde a liberação indicada pelo Gmail antes de tentar novamente.
+
+### O Bot Instagram não inicia
+
+- clique em **Abrir Instagram para login**, conclua o acesso na janela externa e depois use **Verificar sessão**;
+- confira se o link pertence a `instagram.com` e aponta diretamente para uma publicação ou Reel;
+- ative pelo menos uma ação: comentário ou Direct;
+- confirme que o TurboWhats continua aberto e que a publicação está acessível para essa conta; o navegador do Instagram permanece oculto durante o monitoramento.
+
+### Um comentário novo não foi respondido
+
+- mantenha o bot ativo antes de publicar o comentário de teste; a primeira leitura ignora intencionalmente comentários antigos;
+- confira se qualquer palavra cadastrada aparece no comentário;
+- consulte o painel **Atividade** para saber se o comentário foi identificado e se o envio falhou;
+- se o comentário já estava visível ou foi registrado por uma versão anterior, mantenha o bot ativo e clique em **Reprocessar comentários visíveis**;
+- lembre que o mesmo usuário recebe cada ação somente uma vez por publicação;
+- se o Instagram tiver alterado a interface Web, atualize o TurboWhats antes de continuar.
+
 ## Evolução do projeto
 
 Possíveis próximos passos:
@@ -527,6 +655,7 @@ Este projeto demonstra competências em:
 
 - descoberta e refinamento de requisitos a partir de problemas reais;
 - desenvolvimento de aplicações desktop com Electron;
+- automação resiliente de interfaces Web com Puppeteer e sessão persistente;
 - integração com WhatsApp Web e APIs generativas;
 - desenho de fluxos híbridos entre automação determinística e IA;
 - segurança de IPC, credenciais e dados persistentes;

@@ -29,6 +29,12 @@
         <button class="nav-item" data-section="bulk">
           <span class="icon">📣</span> Disparos
         </button>
+        <button class="nav-item" data-section="email">
+          <span class="icon">✉️</span> Disparo de Email
+        </button>
+        <button class="nav-item" data-section="instagram">
+          <span class="icon">📷</span> Bot Instagram
+        </button>
         <button class="nav-item" data-section="ai">
           <span class="icon">🤖</span> IA & Voz
         </button>
@@ -405,6 +411,257 @@
         </div>
       </section>
 
+      <!-- Email Campaign Section -->
+      <section id="email-section" class="section">
+        <div class="section-header">
+          <span class="section-eyebrow">Campanhas pelo Gmail</span>
+          <h2>Disparo de Email</h2>
+          <p>Conecte uma conta Gmail, personalize o conteúdo e envie mensagens individuais aos destinatários autorizados</p>
+        </div>
+
+        <div class="card email-connection-card">
+          <div class="card-header">
+            <div>
+              <h3>🔐 Conectar ao Gmail</h3>
+              <small>A senha normal da conta não funciona: utilize uma Senha de app do Google</small>
+            </div>
+            <span id="emailConnectionStatus" class="email-connection-status inactive">Não conectado</span>
+          </div>
+          <form id="emailConnectionForm" class="email-connection-form">
+            <div class="form-group">
+              <label for="emailSenderName">Nome do remetente</label>
+              <input type="text" id="emailSenderName" maxlength="120" placeholder="Ex.: Henrique Louro">
+            </div>
+            <div class="form-group">
+              <label for="emailSenderAddress">Seu e-mail Gmail</label>
+              <input type="email" id="emailSenderAddress" placeholder="seunome@gmail.com" required>
+            </div>
+            <div class="form-group">
+              <label for="emailAppPassword">Senha de app</label>
+              <input type="password" id="emailAppPassword" autocomplete="new-password" placeholder="16 caracteres" required>
+            </div>
+            <button type="submit" id="emailSaveConnection" class="btn btn-primary">Testar e salvar</button>
+          </form>
+          <div id="emailConnectionFeedback" class="bulk-import-feedback" role="status" aria-live="polite"></div>
+          <div class="email-security-note">
+            <span>🛡️</span>
+            <p>A senha de app fica criptografada neste computador. Para criá-la, ative a verificação em duas etapas e acesse <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer">Senhas de app do Google</a>.</p>
+          </div>
+        </div>
+
+        <div class="email-layout">
+          <div class="card email-contacts-card">
+            <div class="card-header">
+              <div><h3>👥 Destinatários</h3><small>Se o nome ficar vazio, o e-mail será usado automaticamente</small></div>
+              <button type="button" id="emailImportContacts" class="btn btn-secondary btn-small">Importar XLSX/CSV</button>
+            </div>
+            <div id="emailImportFeedback" class="bulk-import-feedback" role="status" aria-live="polite"></div>
+            <form id="emailContactForm" class="email-contact-form">
+              <input type="hidden" id="emailContactId">
+              <div class="form-group">
+                <label for="emailContactName">Nome do destinatário</label>
+                <input type="text" id="emailContactName" maxlength="120" placeholder="Ex.: Maria Oliveira">
+              </div>
+              <div class="form-group">
+                <label for="emailContactAddress">E-mail</label>
+                <input type="email" id="emailContactAddress" placeholder="maria@empresa.com" required>
+              </div>
+              <button type="submit" id="emailSaveContact" class="btn btn-primary">Adicionar</button>
+            </form>
+            <div class="bulk-toolbar">
+              <label class="checkbox-label compact">
+                <input type="checkbox" id="emailSelectAll"><span class="checkbox-custom"></span>Selecionar todos
+              </label>
+              <div class="bulk-toolbar-meta">
+                <button type="button" id="emailDeleteSelected" class="btn btn-danger btn-small" disabled>Excluir selecionados</button>
+                <span id="emailContactCount" class="text-muted">0 destinatários</span>
+              </div>
+            </div>
+            <div id="emailContactsList" class="bulk-contacts-list email-contacts-list"></div>
+          </div>
+
+          <div class="card email-composer-card">
+            <div class="card-header">
+              <div><h3>📝 Criar e-mail</h3><small>O conteúdo será personalizado e enviado separadamente</small></div>
+            </div>
+            <div class="form-group">
+              <label for="emailSubject">Assunto</label>
+              <input type="text" id="emailSubject" maxlength="998" placeholder="Ex.: Olá, {PrimeiroNome}! Temos uma novidade">
+            </div>
+            <div class="form-group">
+              <label>Conteúdo do e-mail</label>
+              <div class="email-editor-toolbar" aria-label="Formatação do e-mail">
+                <button type="button" data-command="bold" title="Negrito"><strong>B</strong></button>
+                <button type="button" data-command="italic" title="Itálico"><em>I</em></button>
+                <button type="button" data-command="underline" title="Sublinhado"><u>U</u></button>
+                <button type="button" data-command="insertUnorderedList" title="Lista">• Lista</button>
+                <button type="button" id="emailCreateLink" title="Inserir link">🔗 Link</button>
+              </div>
+              <div id="emailBodyEditor" class="email-body-editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Digite o texto. Você também pode copiar uma imagem e colar diretamente aqui."></div>
+              <small>Cole imagens com Ctrl+V. Cada imagem deve ter até 5 MB e o conjunto da mensagem até 18 MB.</small>
+            </div>
+            <div class="tag-toolbar email-tag-toolbar">
+              <span>Inserir tag no texto:</span>
+              <button type="button" class="email-tag-chip" data-tag="{Nome}">{Nome}</button>
+              <button type="button" class="email-tag-chip" data-tag="{PrimeiroNome}">{PrimeiroNome}</button>
+              <button type="button" class="email-tag-chip" data-tag="{Email}">{Email}</button>
+              <button type="button" class="email-tag-chip" data-tag="{Data}">{Data}</button>
+              <button type="button" class="email-tag-chip" data-tag="{Hora}">{Hora}</button>
+            </div>
+            <div class="form-group email-attachments-group">
+              <label>Documentos anexados</label>
+              <div class="bulk-file-row">
+                <button type="button" id="emailSelectAttachments" class="btn btn-secondary">Selecionar documentos</button>
+                <span id="emailAttachmentSummary" class="text-muted">Nenhum documento anexado</span>
+              </div>
+              <div id="emailAttachmentsList" class="email-attachments-list"></div>
+            </div>
+            <div class="form-group">
+              <label>Intervalo aleatório entre envios (segundos)</label>
+              <div class="bulk-delay-range">
+                <label for="emailDelayMin"><span>De</span><input type="number" id="emailDelayMin" min="3" max="600" value="10"></label>
+                <span class="bulk-delay-separator">até</span>
+                <label for="emailDelayMax"><span>Até</span><input type="number" id="emailDelayMax" min="3" max="600" value="20"></label>
+              </div>
+            </div>
+            <label class="checkbox-label email-consent">
+              <input type="checkbox" id="emailConsent"><span class="checkbox-custom"></span>
+              Confirmo que os destinatários autorizaram o recebimento destes e-mails
+            </label>
+            <div class="bulk-actions">
+              <button type="button" id="emailStart" class="btn btn-primary">Iniciar envio de e-mails</button>
+              <button type="button" id="emailCancel" class="btn btn-danger" style="display:none;">Cancelar</button>
+            </div>
+            <div id="emailProgressArea" class="bulk-progress-area" style="display:none;">
+              <div class="bulk-progress-header"><strong id="emailProgressText">Preparando...</strong><span id="emailProgressStats">0/0</span></div>
+              <div class="bulk-progress-track"><div id="emailProgressBar" class="bulk-progress-bar"></div></div>
+              <div id="emailProgressLog" class="bulk-progress-log"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Instagram Section -->
+      <section id="instagram-section" class="section">
+        <div class="section-header instagram-section-header">
+          <div>
+            <span class="section-eyebrow">Comentários e Direct</span>
+            <h2>Bot do Instagram</h2>
+            <p>Monitore uma publicação específica e responda automaticamente quando um novo comentário contiver uma palavra-chave.</p>
+          </div>
+          <span id="instagramMonitorStatus" class="instagram-status inactive">Monitor inativo</span>
+        </div>
+
+        <div class="card instagram-login-card">
+          <div class="instagram-login-copy">
+            <div class="instagram-feature-icon" aria-hidden="true">IG</div>
+            <div>
+              <h3>1. Conecte sua conta do Instagram</h3>
+              <p>O TurboWhats abrirá uma janela somente para o login. Ao iniciar o bot, essa janela será fechada e o monitoramento continuará oculto em segundo plano.</p>
+            </div>
+          </div>
+          <div class="instagram-login-actions">
+            <span id="instagramSessionStatus" class="instagram-session-status inactive">Sessão não verificada</span>
+            <button type="button" id="instagramOpenLogin" class="btn btn-primary">Abrir Instagram para login</button>
+            <button type="button" id="instagramCheckSession" class="btn btn-secondary">Verificar sessão</button>
+          </div>
+        </div>
+
+        <div class="instagram-layout">
+          <div class="card instagram-config-card">
+            <div class="card-header">
+              <div><h3>2. Configure o monitoramento</h3><small>Somente a publicação informada será verificada</small></div>
+            </div>
+            <form id="instagramConfigForm">
+              <div class="form-group">
+                <label for="instagramPostUrl">Link da publicação</label>
+                <input type="url" id="instagramPostUrl" placeholder="https://www.instagram.com/p/XXXXXXXX/" maxlength="500" required>
+                <small>Aceita links de publicações e Reels do domínio instagram.com.</small>
+              </div>
+              <div class="form-group">
+                <label for="instagramKeywords">Palavras-chave</label>
+                <textarea id="instagramKeywords" rows="5" maxlength="5000" placeholder="curso&#10;ebook&#10;pdf&#10;quero" required></textarea>
+                <small>Separe por vírgula ou por linha. A comparação ignora maiúsculas, minúsculas e acentos.</small>
+              </div>
+              <div class="instagram-action-switches">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="instagramReplyComment" checked><span class="checkbox-custom"></span>
+                  Responder comentário automaticamente
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" id="instagramSendDirect"><span class="checkbox-custom"></span>
+                  Enviar mensagem por Direct (DM)
+                </label>
+              </div>
+              <div class="form-group">
+                <label for="instagramMessage">Mensagem de resposta</label>
+                <textarea id="instagramMessage" rows="8" maxlength="5000" placeholder="Olá {Nome}!&#10;&#10;Obrigado pelo comentário. Veja: {Link}" required></textarea>
+              </div>
+              <div class="tag-toolbar instagram-tag-toolbar">
+                <span class="instagram-tag-toolbar-title">Atalhos de personalização</span>
+                <div class="instagram-tag-list">
+                  <button type="button" class="instagram-tag-chip" data-tag="{Nome}">{Nome}</button>
+                  <button type="button" class="instagram-tag-chip" data-tag="{PrimeiroNome}">{PrimeiroNome}</button>
+                  <button type="button" class="instagram-tag-chip" data-tag="{Link}">{Link}</button>
+                  <button type="button" class="instagram-tag-chip" data-tag="{Data}">{Data}</button>
+                  <button type="button" class="instagram-tag-chip" data-tag="{Hora}">{Hora}</button>
+                </div>
+                <small>Clique em uma tag para inseri-la na posição do cursor da mensagem.</small>
+              </div>
+              <div class="form-group instagram-interval-field">
+                <label for="instagramMonitorInterval">Verificar novos comentários a cada</label>
+                <div><input type="number" id="instagramMonitorInterval" min="15" max="300" value="20"><span>segundos</span></div>
+                <small>Intervalos menores aumentam o número de acessos à publicação. O mínimo seguro do sistema é 15 segundos.</small>
+              </div>
+              <label class="checkbox-label instagram-consent">
+                <input type="checkbox" id="instagramConsent"><span class="checkbox-custom"></span>
+                Confirmo que utilizarei a automação em interações autorizadas e de acordo com as regras do Instagram.
+              </label>
+              <div id="instagramConfigFeedback" class="bulk-import-feedback" role="status" aria-live="polite"></div>
+              <div class="instagram-config-actions">
+                <button type="submit" id="instagramSaveConfig" class="btn btn-secondary">Salvar configuração</button>
+                <button type="button" id="instagramStart" class="btn btn-primary">Iniciar bot</button>
+                <button type="button" id="instagramStop" class="btn btn-danger" disabled>Parar bot</button>
+              </div>
+            </form>
+          </div>
+
+          <div class="instagram-monitor-column">
+            <div class="card instagram-monitor-card">
+              <div class="card-header">
+                <div><h3>3. Acompanhe o bot</h3><small>Depois do login, o navegador trabalha oculto em segundo plano</small></div>
+              </div>
+              <div class="instagram-stats-grid">
+                <div><span>Comentários lidos</span><strong id="instagramScannedCount">0</strong></div>
+                <div><span>Palavras encontradas</span><strong id="instagramMatchCount">0</strong></div>
+                <div><span>Respostas públicas</span><strong id="instagramCommentCount">0</strong></div>
+                <div><span>Directs enviados</span><strong id="instagramDirectCount">0</strong></div>
+              </div>
+              <div id="instagramMonitorMessage" class="instagram-monitor-message">Conecte sua conta, salve as configurações e inicie o bot.</div>
+              <div class="instagram-reprocess-area">
+                <button type="button" id="instagramProcessVisible" class="btn btn-secondary btn-small" disabled>Reprocessar comentários visíveis</button>
+                <small>Use para recuperar comentários que já estavam na tela ou ficaram sem resposta. Ações concluídas não serão repetidas.</small>
+              </div>
+            </div>
+
+            <div class="card instagram-log-card">
+              <div class="card-header">
+                <div><h3>Atividade</h3><small>Eventos da sessão atual</small></div>
+                <button type="button" id="instagramClearLog" class="btn btn-secondary btn-small">Limpar</button>
+              </div>
+              <div id="instagramActivityLog" class="instagram-activity-log" aria-live="polite">
+                <div class="instagram-log-empty">Nenhuma atividade registrada nesta sessão.</div>
+              </div>
+            </div>
+
+            <div class="card instagram-protection-card">
+              <h3>Proteção contra duplicidade</h3>
+              <p>Cada comentário é identificado internamente. Depois que um usuário recebe uma resposta ou Direct naquela publicação, a mesma ação não é repetida para ele, mesmo que comente novamente.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- Metrics Section -->
       <section id="metrics-section" class="section">
         <div class="section-header metrics-header">
@@ -469,7 +726,7 @@
       <section id="help-section" class="section">
         <div class="section-header">
           <h2>Como usar o TurboWhats</h2>
-          <p>Guia rápido das respostas, da IA, dos disparos e da conexão com o WhatsApp</p>
+          <p>Guia rápido das respostas, da IA, dos disparos e das automações de WhatsApp, e-mail e Instagram</p>
         </div>
 
         <div class="help-grid">
@@ -568,6 +825,7 @@
               <code>{Nome}</code><span>Nome completo. Ex.: João da Silva</span>
               <code>{PrimeiroNome}</code><span>Primeiro nome. Ex.: João</span>
               <code>{Telefone}</code><span>Número cadastrado do contato</span>
+              <code>{Link}</code><span>Link da publicação monitorada no Bot Instagram</span>
               <code>{Data}</code><span>Data do envio no formato brasileiro</span>
               <code>{Hora}</code><span>Horário do envio</span>
             </div>
@@ -579,15 +837,51 @@
             <p>Se um contato não possuir nome, o sistema usa <strong>Cliente</strong>. As tags aceitam letras maiúsculas ou minúsculas.</p>
           </article>
 
+          <article class="card help-card help-ai-guide">
+            <h3>5. Disparo de Email pelo Gmail</h3>
+            <div class="help-ai-columns">
+              <div>
+                <h4>Conectar com Senha de app</h4>
+                <ol>
+                  <li>Ative a <strong>verificação em duas etapas</strong> na sua Conta Google.</li>
+                  <li>Abra <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer">Senhas de app</a>, crie uma senha para o TurboWhats e copie os 16 caracteres.</li>
+                  <li>Na aba <strong>Disparo de Email</strong>, informe o nome do remetente, o e-mail e a senha de app. Clique em <strong>Testar e salvar</strong>.</li>
+                </ol>
+                <p>A senha normal do Gmail não deve ser utilizada. A senha de app fica criptografada localmente pelo Windows.</p>
+              </div>
+              <div>
+                <h4>Montar a campanha</h4>
+                <ol>
+                  <li>Cadastre o nome e o e-mail de cada destinatário ou importe uma planilha com colunas <strong>Nome</strong> e <strong>Email</strong>.</li>
+                  <li>Digite o assunto e o conteúdo. Imagens copiadas podem ser coladas no editor com <strong>Ctrl+V</strong>.</li>
+                  <li>Adicione documentos, use as tags, selecione os destinatários e defina o intervalo aleatório.</li>
+                </ol>
+              </div>
+            </div>
+            <p class="help-ai-note"><strong>Limites e consentimento:</strong> envie somente para pessoas que autorizaram o contato. Contas pessoais do Gmail podem ser bloqueadas temporariamente ao ultrapassar 500 envios por dia ou quando há muitos endereços inválidos. Consulte os <a href="https://support.google.com/mail/answer/22839" target="_blank" rel="noreferrer">limites oficiais do Gmail</a>.</p>
+          </article>
+
           <article class="card help-card">
-            <h3>5. Envio responsável</h3>
+            <h3>6. Bot do Instagram</h3>
+            <ol>
+              <li>Abra a aba <strong>Bot Instagram</strong>, clique em <strong>Abrir Instagram para login</strong> e acesse sua conta na janela aberta.</li>
+              <li>Volte ao TurboWhats, clique em <strong>Verificar sessão</strong> e cole o link da única publicação que será monitorada.</li>
+              <li>Cadastre palavras-chave por vírgula ou linha. O sistema ignora diferenças de letras maiúsculas e acentos.</li>
+              <li>Escolha resposta pública, Direct ou os dois, escreva a mensagem com tags e inicie o bot.</li>
+            </ol>
+            <p>A primeira leitura registra os comentários que já existiam sem respondê-los. Depois disso, somente comentários novos são avaliados. Cada ação concluída fica registrada por usuário e publicação para impedir respostas duplicadas.</p>
+            <p class="help-ai-note"><strong>Importante:</strong> a janela aparece somente durante o login; depois que o bot inicia, o Instagram funciona oculto em segundo plano. Envie somente mensagens esperadas pelos usuários. Como a automação usa o Instagram Web, alterações feitas pelo Instagram na página podem exigir uma atualização do TurboWhats.</p>
+          </article>
+
+          <article class="card help-card">
+            <h3>7. Envio responsável</h3>
             <p>Envie mensagens somente para pessoas que autorizaram o contato. Use intervalos adequados, acompanhe o progresso e cancele a campanha caso identifique algum problema.</p>
             <p>O botão <strong>Sair</strong> desconecta a conta do WhatsApp Web e exigirá um novo QR Code no próximo acesso.</p>
           </article>
 
           <article class="card help-card">
-            <h3>6. Entender as métricas</h3>
-            <p>A aba <strong>Métricas</strong> considera os envios automáticos, respostas da IA, áudios e campanhas. Os indicadores “hoje” são reiniciados visualmente à meia-noite, mas o histórico local recente é preservado.</p>
+            <h3>8. Entender as métricas</h3>
+            <p>A aba <strong>Métricas</strong> considera os envios automáticos, respostas da IA, áudios, campanhas de WhatsApp e disparos de e-mail. Os indicadores “hoje” são reiniciados visualmente à meia-noite, mas o histórico local recente é preservado.</p>
             <p>A taxa da IA compara respostas geradas com tentativas feitas ao Gemini. A taxa de falha compara envios com erro com todas as tentativas do dia. O tempo de pausa soma apenas as esperas realmente cumpridas entre disparos.</p>
           </article>
 
@@ -763,6 +1057,20 @@
       <p>© 2026 Henrique Louro · Todos os direitos reservados a Henrique Louro</p>
     </div>
   </footer>
+
+  <dialog id="confirmationDialog" class="confirmation-dialog" aria-labelledby="confirmationDialogTitle" aria-describedby="confirmationDialogMessage">
+    <div class="confirmation-dialog-content">
+      <div class="confirmation-dialog-icon" aria-hidden="true">!</div>
+      <div>
+        <h3 id="confirmationDialogTitle">Confirmar ação</h3>
+        <p id="confirmationDialogMessage"></p>
+      </div>
+    </div>
+    <div class="confirmation-dialog-actions">
+      <button type="button" id="confirmationDialogCancel" class="btn btn-secondary">Cancelar</button>
+      <button type="button" id="confirmationDialogConfirm" class="btn btn-danger">Confirmar</button>
+    </div>
+  </dialog>
 
   <script src="renderer.js"></script>
 </body>

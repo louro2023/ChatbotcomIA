@@ -652,6 +652,8 @@ body {
 }
 
 input[type="text"],
+input[type="email"],
+input[type="url"],
 input[type="password"],
 input[type="number"],
 textarea,
@@ -668,6 +670,8 @@ select {
 }
 
 input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="url"]:focus,
 input[type="password"]:focus,
 input[type="number"]:focus,
 textarea:focus,
@@ -1537,6 +1541,471 @@ select:focus-visible {
 .bulk-log-error { color: #fca5a5; }
 .bulk-log-success { color: #86efac; }
 
+/* ===== Email Campaigns ===== */
+.email-connection-card { margin-bottom: 22px; }
+
+.email-connection-form {
+  display: grid;
+  grid-template-columns: minmax(170px, 0.8fr) minmax(220px, 1fr) minmax(200px, 0.9fr) auto;
+  align-items: end;
+  gap: 14px;
+}
+
+.email-connection-form .form-group { margin: 0; }
+
+.email-connection-status {
+  padding: 6px 10px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px solid var(--border-light);
+  border-radius: 999px;
+}
+
+.email-connection-status.active {
+  color: #6ee7b7;
+  background: rgba(16, 185, 129, 0.09);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.email-security-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 14px;
+  padding: 10px 12px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  background: rgba(59, 130, 246, 0.06);
+  border: 1px solid rgba(59, 130, 246, 0.14);
+  border-radius: var(--radius-md);
+}
+
+.email-security-note p { margin: 0; }
+.email-security-note a { color: #93c5fd; }
+
+.email-layout {
+  display: grid;
+  grid-template-columns: minmax(370px, 0.82fr) minmax(480px, 1.18fr);
+  gap: 22px;
+  align-items: start;
+}
+
+.email-contact-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: 12px;
+}
+
+.email-contact-form .form-group { margin: 0; }
+.email-contact-form .btn { grid-column: 1 / -1; width: 100%; }
+
+.email-editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px;
+  background: rgba(8, 15, 28, 0.45);
+  border: 1px solid var(--border);
+  border-bottom: 0;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+
+.email-editor-toolbar button {
+  min-width: 34px;
+  height: 30px;
+  padding: 0 8px;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.email-editor-toolbar button:hover {
+  color: white;
+  background: rgba(59, 130, 246, 0.16);
+  border-color: rgba(59, 130, 246, 0.4);
+}
+
+.email-body-editor {
+  min-height: 260px;
+  max-height: 520px;
+  padding: 16px;
+  overflow-y: auto;
+  color: #172033;
+  line-height: 1.6;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  outline: none;
+}
+
+.email-body-editor:focus { border-color: var(--brand-cyan); }
+.email-body-editor:empty::before { content: attr(data-placeholder); color: #7c8799; pointer-events: none; }
+.email-body-editor img { display: block; max-width: 100%; height: auto; margin: 10px 0; }
+.email-body-editor a { color: #2563eb; }
+
+.confirmation-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  right: auto;
+  bottom: auto;
+  transform: translate(-50%, -50%);
+  width: min(460px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: var(--radius-lg);
+  color: var(--text-primary);
+  background: #151b29;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.52);
+}
+
+.confirmation-dialog::backdrop {
+  background: rgba(3, 7, 18, 0.68);
+  backdrop-filter: blur(3px);
+}
+
+.confirmation-dialog-content {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 24px;
+}
+
+.confirmation-dialog-icon {
+  display: grid;
+  flex: 0 0 40px;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  color: #fecaca;
+  background: rgba(239, 68, 68, 0.16);
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.confirmation-dialog h3 { margin: 0 0 8px; }
+.confirmation-dialog p { margin: 0; color: var(--text-secondary); line-height: 1.55; }
+
+.confirmation-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 24px;
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.instagram-section-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: center;
+}
+
+.instagram-status,
+.instagram-session-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  background: rgba(15, 23, 42, 0.65);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.instagram-status::before,
+.instagram-session-status::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #64748b;
+}
+
+.instagram-status.active,
+.instagram-session-status.active {
+  color: #bbf7d0;
+  border-color: rgba(34, 197, 94, 0.28);
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.instagram-status.active::before,
+.instagram-session-status.active::before {
+  background: #22c55e;
+  box-shadow: 0 0 12px rgba(34, 197, 94, 0.7);
+}
+
+.instagram-status.working {
+  color: #bfdbfe;
+  border-color: rgba(59, 130, 246, 0.32);
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.instagram-status.working::before {
+  background: #60a5fa;
+  animation: pulse 1.5s infinite;
+}
+
+.instagram-login-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: center;
+  border-color: rgba(236, 72, 153, 0.2);
+  background: linear-gradient(135deg, rgba(131, 58, 180, 0.1), rgba(253, 29, 29, 0.045) 55%, rgba(252, 176, 69, 0.06));
+}
+
+.instagram-login-copy {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.instagram-login-copy h3,
+.instagram-login-copy p { margin: 0; }
+.instagram-login-copy p { margin-top: 6px; color: var(--text-secondary); line-height: 1.5; }
+
+.instagram-feature-icon {
+  display: grid;
+  flex: 0 0 48px;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 15px;
+  color: #fff;
+  background: linear-gradient(135deg, #833ab4, #fd1d1d 58%, #fcb045);
+  box-shadow: 0 10px 24px rgba(225, 48, 108, 0.24);
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.instagram-login-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  align-items: center;
+}
+
+.instagram-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(330px, 0.85fr);
+  gap: 20px;
+  margin-top: 20px;
+  align-items: start;
+}
+
+.instagram-config-card textarea { resize: vertical; }
+
+.instagram-action-switches {
+  display: grid;
+  gap: 8px;
+  margin: 4px 0 18px;
+}
+
+.instagram-tag-toolbar {
+  display: grid;
+  align-items: start;
+  gap: 9px;
+  margin: 10px 0 20px;
+  padding: 12px 14px;
+  border: 1px solid rgba(236, 72, 153, 0.2);
+  border-radius: var(--radius-md);
+  background: rgba(236, 72, 153, 0.045);
+}
+
+.instagram-tag-toolbar-title {
+  color: #f9a8d4;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.instagram-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.instagram-tag-toolbar small { color: var(--text-muted); line-height: 1.4; }
+
+.instagram-tag-chip {
+  padding: 5px 9px;
+  border: 1px solid rgba(236, 72, 153, 0.28);
+  border-radius: 999px;
+  color: #f9a8d4;
+  background: rgba(236, 72, 153, 0.08);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.instagram-tag-chip:hover { background: rgba(236, 72, 153, 0.16); }
+
+.instagram-interval-field > div {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.instagram-interval-field input { width: 120px; }
+.instagram-interval-field span { color: var(--text-secondary); }
+.instagram-consent { margin: 18px 0 14px; }
+
+.instagram-config-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.instagram-monitor-column {
+  display: grid;
+  gap: 20px;
+}
+
+.instagram-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.instagram-stats-grid > div {
+  display: grid;
+  gap: 5px;
+  padding: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: var(--radius-md);
+  background: rgba(15, 23, 42, 0.46);
+}
+
+.instagram-stats-grid span { color: var(--text-secondary); font-size: 12px; }
+.instagram-stats-grid strong { font-size: 24px; }
+
+.instagram-monitor-message {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  background: rgba(59, 130, 246, 0.07);
+  line-height: 1.45;
+}
+
+.instagram-reprocess-area {
+  display: grid;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.instagram-reprocess-area .btn { justify-self: start; }
+.instagram-reprocess-area small { color: var(--text-muted); line-height: 1.45; }
+
+.instagram-activity-log {
+  display: grid;
+  gap: 8px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.instagram-log-line,
+.instagram-log-empty {
+  padding: 10px 12px;
+  border-left: 3px solid #64748b;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  background: rgba(15, 23, 42, 0.5);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.instagram-log-line.success { border-left-color: #22c55e; }
+.instagram-log-line.error { border-left-color: #ef4444; color: #fecaca; }
+.instagram-log-line.warning { border-left-color: #f59e0b; color: #fde68a; }
+.instagram-log-line.match { border-left-color: #ec4899; }
+.instagram-log-line time { display: block; margin-bottom: 3px; color: #94a3b8; font-size: 10px; }
+
+.instagram-protection-card {
+  border-color: rgba(34, 197, 94, 0.2);
+  background: rgba(34, 197, 94, 0.045);
+}
+
+.instagram-protection-card h3,
+.instagram-protection-card p { margin: 0; }
+.instagram-protection-card p { margin-top: 8px; color: var(--text-secondary); line-height: 1.55; }
+
+@media (max-width: 1120px) {
+  .instagram-layout { grid-template-columns: 1fr; }
+  .instagram-login-card { align-items: flex-start; flex-direction: column; }
+  .instagram-login-actions { justify-content: flex-start; }
+}
+
+@media (max-width: 720px) {
+  .instagram-section-header { align-items: flex-start; flex-direction: column; }
+  .instagram-stats-grid { grid-template-columns: 1fr; }
+  .instagram-config-actions > .btn,
+  .instagram-login-actions > .btn { width: 100%; }
+}
+
+.email-tag-chip {
+  padding: 5px 9px;
+  color: #93c5fd;
+  font-family: Consolas, monospace;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.email-tag-chip:hover { background: rgba(59, 130, 246, 0.2); border-color: var(--primary); }
+.email-tag-toolbar { margin: 12px 0 18px; }
+.email-attachments-group { margin-top: 18px; }
+
+.email-attachments-list {
+  display: grid;
+  gap: 7px;
+  margin-top: 9px;
+}
+
+.email-attachment-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  background: rgba(8, 15, 28, 0.35);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+}
+
+.email-attachment-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.email-attachment-item button {
+  color: #fca5a5;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.email-consent { margin: 16px 0; }
+
 .tag-toolbar {
   display: flex;
   align-items: center;
@@ -1752,6 +2221,9 @@ select:focus-visible {
 
   .metrics-grid { grid-template-columns: repeat(2, minmax(210px, 1fr)); }
   .metrics-charts { grid-template-columns: 1fr; }
+  .email-layout { grid-template-columns: 1fr; }
+  .email-connection-form { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  #emailSaveConnection { grid-column: 1 / -1; }
 }
 
 @media (max-width: 768px) {
@@ -1809,6 +2281,9 @@ select:focus-visible {
   .metrics-grid { grid-template-columns: 1fr; }
   .metric-bar-chart { gap: 2px; }
   .metric-bar-column small { font-size: 7px; }
+  .email-connection-form,
+  .email-contact-form { grid-template-columns: 1fr; }
+  .email-editor-toolbar { flex-wrap: wrap; }
 
   .bulk-contact-form {
     grid-template-columns: 1fr;
