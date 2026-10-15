@@ -1,0 +1,14 @@
+﻿const assert = require('assert/strict');
+const { recordGroupActivity } = require('../Electron/group-runtime');
+let state = recordGroupActivity(undefined, { decision: 'matched', command: '!ajuda', source: 'scan' }, '2026-10-15T12:00:00Z');
+state = recordGroupActivity(state, { decision: 'sent', command: '!ajuda', source: 'scan' });
+assert.equal(state.received, 1); assert.equal(state.sent, 1); assert.equal(state.failed, 0);
+state = recordGroupActivity(state, { decision: 'matched', command: '!ajuda', source: 'event' });
+state = recordGroupActivity(state, { decision: 'send-error', command: '!ajuda', error: 'Sem permissão', source: 'event' });
+assert.equal(state.received, 2); assert.equal(state.sent, 1); assert.equal(state.failed, 1); assert.equal(state.error, 'Sem permissão');
+state = recordGroupActivity(state, { decision: 'sent', command: '!ajuda', source: 'event' });
+assert.equal(state.error, ''); assert.equal(state.failed, 1); assert.ok(state.activity.some(event => event.error === 'Sem permissão'));
+for (let index = 0; index < 120; index++) state = recordGroupActivity(state, { decision: 'no-match', source: 'scan' });
+assert.equal(state.activity.length, 100); assert.equal(state.received, 122);
+assert.equal(state.sent, 2); assert.equal(state.failed, 1);
+console.log('Painel de grupos: contadores, histórico limitado e preservação de erros após recuperação OK.');

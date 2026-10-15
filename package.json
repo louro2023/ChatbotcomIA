@@ -1,6 +1,6 @@
 {
   "name": "cchatbot",
-  "version": "1.2.9",
+  "version": "1.5.0",
   "description": "TurboWhats - atendimento inteligente e campanhas por WhatsApp e email",
   "author": "Henrique Louro",
   "license": "MIT",
@@ -15,7 +15,10 @@
   "main": "Electron/main.js",
   "scripts": {
     "start": "node scripts/run-electron.js",
-    "check": "node --check Electron/main.js && node --check Electron/preload.js && node --check Electron/renderer.js && node --check Electron/instagram-utils.js && node --check Electron/instagram-browser.js && node --check scripts/run-electron.js && node --check scripts/prepare-browser.js && node --check scripts/prepare-brand-assets.mjs && node --check scripts/test-instagram-browser.js && node --check scripts/test-instagram-ui.js && npm run test:instagram",
+    "check": "node --check Electron/whatsapp-compat.js && node scripts/test-whatsapp-compat.js && node --check Electron/group-runtime.js && node scripts/test-group-runtime.js && node --check Electron/group-reader.js && node scripts/test-group-reader.js && node --check Electron/group-discovery.js && node scripts/test-group-discovery.js && node --check Electron/group-monitor.js && node scripts/test-group-typing.js && node --check Electron/groups-renderer.js && node scripts/test-group-monitor.js && node scripts/test-groups-ui.js && node --check Electron/main.js && node --check Electron/preload.js && node --check Electron/renderer.js && node --check Electron/instagram-utils.js && node --check Electron/instagram-browser.js && node --check Electron/bulk-safety.js && node --check Electron/bulk-messages.js && node --check Electron/bulk-pacing.js && node --check scripts/run-electron.js && node --check scripts/prepare-browser.js && node --check scripts/prepare-brand-assets.mjs && node --check scripts/test-instagram-browser.js && node --check scripts/test-instagram-ui.js && npm run test:bulk-safety && npm run test:bulk-messages && npm run test:bulk-pacing && npm run test:instagram",
+    "test:bulk-safety": "node scripts/test-bulk-safety.js",
+    "test:bulk-messages": "node scripts/test-bulk-messages.js",
+    "test:bulk-pacing": "node scripts/test-bulk-pacing.js",
     "test:instagram": "node scripts/test-instagram-utils.js && node scripts/test-instagram-browser.js && node scripts/test-instagram-ui.js",
     "smoke": "node scripts/run-electron.js --smoke-test",
     "prepare:brand": "node scripts/prepare-brand-assets.mjs",

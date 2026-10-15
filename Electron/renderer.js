@@ -253,6 +253,27 @@ window.addEventListener('DOMContentLoaded', async () => {
     };
   }
 
+  document.querySelectorAll('[data-whatsapp-account-type]').forEach(button => {
+    button.addEventListener('click', async () => {
+      const accountType = button.dataset.whatsappAccountType;
+      const buttons = document.querySelectorAll('[data-whatsapp-account-type]');
+      buttons.forEach(option => { option.disabled = true; });
+      button.classList.add('selected');
+      try {
+        const result = await window.electronAPI.selectWhatsAppAccountType(accountType);
+        if (!result?.ok) {
+          alert(result?.error || 'Não foi possível iniciar a conexão.');
+          button.classList.remove('selected');
+          buttons.forEach(option => { option.disabled = false; });
+        }
+      } catch (error) {
+        alert(`Erro ao iniciar a conexão: ${error.message}`);
+        button.classList.remove('selected');
+        buttons.forEach(option => { option.disabled = false; });
+      }
+    });
+  });
+
   // Navigation handler
   const navItems = document.querySelectorAll('.nav-item');
   navItems.forEach(item => {
@@ -280,6 +301,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   await renderGeminiUsage();
   await renderBulkContacts();
   await loadBulkDelaySettings();
+  await refreshBulkSafetyStatus();
   await loadEmailSettings();
   await renderEmailContacts();
   await loadInstagramSettings();
@@ -414,6 +436,16 @@ window.electronAPI.onWaStatus((data) => {
   const connectedArea = document.getElementById('connectedArea');
   const loadingArea = document.getElementById('loadingBarArea');
   const qrcodeContainer = document.getElementById('qrcodeContainer');
+  const accountTypeArea = document.getElementById('whatsappAccountTypeArea');
+  const qrcodeAppName = document.getElementById('qrcodeAppName');
+  const qrcodeAccountLabel = document.getElementById('qrcodeAccountLabel');
+  const connectedAccountType = document.getElementById('connectedAccountType');
+  const accountLabel = data.accountLabel || (data.accountType === 'business' ? 'WhatsApp Business' : 'WhatsApp');
+
+  if (data.accountType) {
+    if (qrcodeAppName) qrcodeAppName.textContent = accountLabel;
+    if (qrcodeAccountLabel) qrcodeAccountLabel.textContent = `Escaneie pelo ${accountLabel} no seu celular`;
+  }
 
   if (data.connected) {
     waIsConnected = true;
@@ -424,6 +456,8 @@ window.electronAPI.onWaStatus((data) => {
     if (connectedArea) connectedArea.style.display = 'none';
     if (loadingArea) loadingArea.style.display = '';
     if (qrcodeContainer) qrcodeContainer.style.display = 'none';
+    if (accountTypeArea) accountTypeArea.style.display = 'none';
+    if (connectedAccountType) connectedAccountType.textContent = `Conta conectada pelo ${accountLabel}`;
     updateConnectionLoader({ ...data, phase: 'ready', progress: 100 });
     connectionReadyTimer = setTimeout(() => {
       if (loadingArea) loadingArea.style.display = 'none';
@@ -438,21 +472,35 @@ window.electronAPI.onWaStatus((data) => {
     if (btnReconectar) btnReconectar.style.display = '';
     if (connectedArea) connectedArea.style.display = 'none';
     if (loadingArea) loadingArea.style.display = 'none';
+    if (accountTypeArea) accountTypeArea.style.display = 'none';
   } else if (data.message) {
     waIsConnected = false;
     clearTimeout(connectionReadyTimer);
     errorArea.style.display = 'none';
-    updateConnectionLoader(data);
-    if (data.phase === 'qr') {
+    if (data.phase === 'account-type') {
+      status.innerHTML = '<span class="status-dot disconnected">●</span> <span id="waStatusText">Escolha o aplicativo</span>';
+      if (loadingArea) loadingArea.style.display = 'none';
+      if (qrcodeContainer) qrcodeContainer.style.display = 'none';
+      if (connectedArea) connectedArea.style.display = 'none';
+      if (accountTypeArea) accountTypeArea.style.display = '';
+      document.querySelectorAll('[data-whatsapp-account-type]').forEach(option => {
+        option.disabled = false;
+        option.classList.remove('selected');
+      });
+    } else if (data.phase === 'qr') {
+      updateConnectionLoader(data);
       status.innerHTML = '<span class="status-dot attempting">●</span> <span id="waStatusText">Escaneando QR Code</span>';
       if (loadingArea) loadingArea.style.display = 'none';
       if (qrcodeContainer) qrcodeContainer.style.display = '';
       if (connectedArea) connectedArea.style.display = 'none';
+      if (accountTypeArea) accountTypeArea.style.display = 'none';
     } else {
+      updateConnectionLoader(data);
       status.innerHTML = '<span class="status-dot attempting">●</span> <span id="waStatusText">Conectando...</span>';
       if (loadingArea) loadingArea.style.display = '';
       if (qrcodeContainer) qrcodeContainer.style.display = 'none';
       if (connectedArea) connectedArea.style.display = 'none';
+      if (accountTypeArea) accountTypeArea.style.display = 'none';
     }
   } else {
     waIsConnected = false;
@@ -522,13 +570,21 @@ function appendInstagramLog(data = {}) {
   log.scrollTop = log.scrollHeight;
 }
 
+function updateInstagramMessageFields() {
+  const replyComment = document.getElementById('instagramReplyComment').checked;
+  const sendDirect = document.getElementById('instagramSendDirect').checked;
+  document.getElementById('instagramCommentMessageField').hidden = !replyComment;
+  document.getElementById('instagramDirectMessageField').hidden = !sendDirect;
+}
+
 function readInstagramForm() {
   return {
     postUrl: document.getElementById('instagramPostUrl').value.trim(),
     keywords: document.getElementById('instagramKeywords').value.trim(),
     replyComment: document.getElementById('instagramReplyComment').checked,
     sendDirect: document.getElementById('instagramSendDirect').checked,
-    message: document.getElementById('instagramMessage').value.trim(),
+    commentMessage: document.getElementById('instagramCommentMessage').value.trim(),
+    directMessage: document.getElementById('instagramDirectMessage').value.trim(),
     intervalSeconds: Math.max(15, Math.min(300, Number(document.getElementById('instagramMonitorInterval').value) || 20))
   };
 }
@@ -539,7 +595,8 @@ function validateInstagramForm(settings) {
   }
   if (!settings.keywords.split(/[\n,;]+/).some(keyword => keyword.trim())) return 'Cadastre pelo menos uma palavra-chave.';
   if (!settings.replyComment && !settings.sendDirect) return 'Ative a resposta no comentário, o envio por Direct ou as duas opções.';
-  if (!settings.message) return 'Digite a mensagem que será enviada.';
+  if (settings.replyComment && !settings.commentMessage) return 'Digite a resposta pública que será enviada no comentário.';
+  if (settings.sendDirect && !settings.directMessage) return 'Digite a mensagem que será enviada por Direct.';
   return '';
 }
 
@@ -552,7 +609,9 @@ async function saveInstagramSettings(showFeedback = true) {
   cfg.instagramKeywords = settings.keywords;
   cfg.instagramReplyComment = settings.replyComment;
   cfg.instagramSendDirect = settings.sendDirect;
-  cfg.instagramMessage = settings.message;
+  cfg.instagramCommentMessage = settings.commentMessage;
+  cfg.instagramDirectMessage = settings.directMessage;
+  delete cfg.instagramMessage;
   cfg.instagramMonitorIntervalSeconds = settings.intervalSeconds;
   await writeConfig(cfg);
   document.getElementById('instagramMonitorInterval').value = String(settings.intervalSeconds);
@@ -566,8 +625,11 @@ async function loadInstagramSettings() {
   document.getElementById('instagramKeywords').value = cfg.instagramKeywords || '';
   document.getElementById('instagramReplyComment').checked = cfg.instagramReplyComment !== false;
   document.getElementById('instagramSendDirect').checked = cfg.instagramSendDirect === true;
-  document.getElementById('instagramMessage').value = cfg.instagramMessage || '';
+  const legacyMessage = cfg.instagramMessage || '';
+  document.getElementById('instagramCommentMessage').value = cfg.instagramCommentMessage || legacyMessage;
+  document.getElementById('instagramDirectMessage').value = cfg.instagramDirectMessage || legacyMessage;
   document.getElementById('instagramMonitorInterval').value = Number(cfg.instagramMonitorIntervalSeconds) || 20;
+  updateInstagramMessageFields();
 }
 
 async function refreshInstagramStatus() {
@@ -635,6 +697,9 @@ document.getElementById('instagramCheckSession').addEventListener('click', async
   }
 });
 
+document.getElementById('instagramReplyComment').addEventListener('change', updateInstagramMessageFields);
+document.getElementById('instagramSendDirect').addEventListener('change', updateInstagramMessageFields);
+
 document.getElementById('instagramStart').addEventListener('click', async () => {
   if (!document.getElementById('instagramConsent').checked) {
     setInstagramFeedback('error', 'Confirme o uso autorizado e o cumprimento das regras do Instagram antes de iniciar.');
@@ -699,7 +764,8 @@ document.getElementById('instagramProcessVisible').addEventListener('click', asy
 
 document.querySelectorAll('.instagram-tag-chip').forEach(button => {
   button.addEventListener('click', () => {
-    const textarea = document.getElementById('instagramMessage');
+    const textarea = document.getElementById(button.dataset.target);
+    if (!textarea) return;
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
     textarea.setRangeText(button.dataset.tag || '', start, end, 'end');
@@ -1107,9 +1173,16 @@ document.getElementById('defaultNoReplyForm').addEventListener('submit', async f
 // --- Disparos em massa (integração Send Louro) ---
 let bulkSelectedImagePath = null;
 let bulkRunning = false;
+let bulkSafetyLocked = false;
+let bulkActiveMessageTextarea = document.getElementById('bulkMessage');
 const bulkSelectedIds = new Set();
 const BULK_DELAY_MIN_SECONDS = 3;
 const BULK_DELAY_MAX_SECONDS = 600;
+const BULK_PAUSE_EVERY_MIN_MESSAGES = 10;
+const BULK_PAUSE_EVERY_MAX_MESSAGES = 500;
+const BULK_LONG_PAUSE_MIN_MINUTES = 1;
+const BULK_LONG_PAUSE_MAX_MINUTES = 120;
+const BULK_MAX_MESSAGE_VARIATIONS = 5;
 const BULK_COUNTRY_CODES = ['591', '593', '506', '503', '502', '509', '504', '505', '507', '595', '598', '351', '55', '54', '56', '57', '53', '52', '51', '58', '34', '44', '39', '49', '33', '1'];
 
 function bulkDigits(value) {
@@ -1193,7 +1266,11 @@ function applyBulkPreviewTags(template, contact) {
 async function updateBulkMessagePreview() {
   const preview = document.getElementById('bulkMessagePreview');
   if (!preview) return;
-  const message = document.getElementById('bulkMessage').value;
+  const textareas = [...document.querySelectorAll('.bulk-message-variation-text')];
+  if (!bulkActiveMessageTextarea?.isConnected) bulkActiveMessageTextarea = textareas[0] || null;
+  const activeIndex = Math.max(0, textareas.indexOf(bulkActiveMessageTextarea));
+  const message = bulkActiveMessageTextarea?.value || '';
+  document.getElementById('bulkMessagePreviewLabel').textContent = `Prévia da variação ${activeIndex + 1}:`;
   if (!message) {
     preview.textContent = 'Digite uma mensagem para visualizar a personalização.';
     return;
@@ -1205,6 +1282,68 @@ async function updateBulkMessagePreview() {
   };
   preview.textContent = applyBulkPreviewTags(message, contact);
 }
+
+function getBulkMessageTextareas() {
+  return [...document.querySelectorAll('.bulk-message-variation-text')];
+}
+
+function updateBulkVariationControls() {
+  const variations = [...document.querySelectorAll('.bulk-message-variation')];
+  variations.forEach((variation, index) => {
+    variation.querySelector('strong').textContent = `Variação ${index + 1}`;
+    const removeButton = variation.querySelector('.bulk-remove-variation');
+    if (removeButton) removeButton.disabled = bulkRunning || variations.length === 1;
+  });
+  document.getElementById('bulkVariationCount').textContent = `${variations.length} de ${BULK_MAX_MESSAGE_VARIATIONS} variações`;
+  document.getElementById('bulkAddVariation').disabled = bulkRunning || variations.length >= BULK_MAX_MESSAGE_VARIATIONS;
+}
+
+function registerBulkVariationTextarea(textarea) {
+  textarea.addEventListener('focus', () => {
+    bulkActiveMessageTextarea = textarea;
+    void updateBulkMessagePreview();
+  });
+  textarea.addEventListener('input', () => {
+    bulkActiveMessageTextarea = textarea;
+    void updateBulkMessagePreview();
+  });
+}
+
+function addBulkMessageVariation() {
+  const container = document.getElementById('bulkMessageVariations');
+  if (getBulkMessageTextareas().length >= BULK_MAX_MESSAGE_VARIATIONS) return;
+
+  const variation = document.createElement('div');
+  variation.className = 'bulk-message-variation';
+  const header = document.createElement('div');
+  header.className = 'bulk-message-variation-header';
+  const title = document.createElement('strong');
+  const removeButton = document.createElement('button');
+  removeButton.type = 'button';
+  removeButton.className = 'btn btn-danger btn-small bulk-remove-variation';
+  removeButton.textContent = 'Remover';
+  const textarea = document.createElement('textarea');
+  textarea.className = 'bulk-message-variation-text';
+  textarea.placeholder = 'Digite outra variação da mesma mensagem...';
+  removeButton.addEventListener('click', () => {
+    if (getBulkMessageTextareas().length <= 1) return;
+    variation.remove();
+    bulkActiveMessageTextarea = getBulkMessageTextareas()[0] || null;
+    updateBulkVariationControls();
+    void updateBulkMessagePreview();
+  });
+  registerBulkVariationTextarea(textarea);
+  header.append(title, removeButton);
+  variation.append(header, textarea);
+  container.appendChild(variation);
+  bulkActiveMessageTextarea = textarea;
+  updateBulkVariationControls();
+  textarea.focus();
+}
+
+registerBulkVariationTextarea(document.getElementById('bulkMessage'));
+document.getElementById('bulkAddVariation').addEventListener('click', addBulkMessageVariation);
+updateBulkVariationControls();
 
 async function loadBulkContacts() {
   const cfg = await readConfig();
@@ -1227,16 +1366,40 @@ function getBulkDelayRange() {
   return { min, max };
 }
 
+function getBulkLongPauseSettings() {
+  const pauseEveryMessages = Math.round(Number(document.getElementById('bulkPauseEveryMessages').value));
+  const longPauseMinutes = Math.round(Number(document.getElementById('bulkLongPauseMinutes').value));
+  if (
+    !Number.isFinite(pauseEveryMessages)
+    || !Number.isFinite(longPauseMinutes)
+    || pauseEveryMessages < BULK_PAUSE_EVERY_MIN_MESSAGES
+    || pauseEveryMessages > BULK_PAUSE_EVERY_MAX_MESSAGES
+    || longPauseMinutes < BULK_LONG_PAUSE_MIN_MINUTES
+    || longPauseMinutes > BULK_LONG_PAUSE_MAX_MINUTES
+  ) return null;
+  return { pauseEveryMessages, longPauseMinutes };
+}
+
 async function loadBulkDelaySettings() {
   const cfg = await readConfig();
   document.getElementById('bulkDelayMin').value = Number(cfg.bulkDelayMinSeconds) || 10;
   document.getElementById('bulkDelayMax').value = Number(cfg.bulkDelayMaxSeconds) || 20;
+  document.getElementById('bulkPauseEveryMessages').value = Number(cfg.bulkPauseEveryMessages) || 50;
+  document.getElementById('bulkLongPauseMinutes').value = Number(cfg.bulkLongPauseMinutes) || 15;
+  document.getElementById('bulkSimulatedTypingEnabled').checked = cfg.bulkSimulatedTypingEnabled === true;
 }
 
 async function saveBulkDelaySettings(range) {
   const cfg = await readConfig();
   cfg.bulkDelayMinSeconds = range.min;
   cfg.bulkDelayMaxSeconds = range.max;
+  await writeConfig(cfg);
+}
+
+async function saveBulkLongPauseSettings(settings) {
+  const cfg = await readConfig();
+  cfg.bulkPauseEveryMessages = settings.pauseEveryMessages;
+  cfg.bulkLongPauseMinutes = settings.longPauseMinutes;
   await writeConfig(cfg);
 }
 
@@ -1247,17 +1410,69 @@ for (const fieldId of ['bulkDelayMin', 'bulkDelayMax']) {
   });
 }
 
+for (const fieldId of ['bulkPauseEveryMessages', 'bulkLongPauseMinutes']) {
+  document.getElementById(fieldId).addEventListener('change', async () => {
+    const settings = getBulkLongPauseSettings();
+    if (settings) await saveBulkLongPauseSettings(settings);
+  });
+}
+
+document.getElementById('bulkSimulatedTypingEnabled').addEventListener('change', async event => {
+  const cfg = await readConfig();
+  cfg.bulkSimulatedTypingEnabled = event.target.checked === true;
+  await writeConfig(cfg);
+});
+
 function setBulkRunning(running) {
   bulkRunning = running;
-  document.getElementById('bulkStart').disabled = running;
+  document.getElementById('bulkStart').disabled = running || bulkSafetyLocked;
   document.getElementById('bulkCancel').style.display = running ? '' : 'none';
   document.getElementById('bulkSaveContact').disabled = running;
   document.getElementById('bulkImportContacts').disabled = running;
   document.getElementById('bulkImportWhatsApp').disabled = running;
   document.getElementById('bulkSelectAll').disabled = running;
+  document.getElementById('bulkSimulatedTypingEnabled').disabled = running;
+  document.getElementById('bulkPauseEveryMessages').disabled = running;
+  document.getElementById('bulkLongPauseMinutes').disabled = running;
+  getBulkMessageTextareas().forEach(textarea => { textarea.disabled = running; });
+  document.querySelectorAll('.bulk-remove-variation').forEach(button => { button.disabled = running; });
+  updateBulkVariationControls();
   document.querySelectorAll('#bulkContactsList input, #bulkContactsList button').forEach(element => { element.disabled = running; });
   document.getElementById('bulkDeleteSelected').disabled = running || bulkSelectedIds.size === 0;
 }
+
+function renderBulkSafetyStatus(status) {
+  const alertArea = document.getElementById('bulkSafetyAlert');
+  const incident = status?.incident || null;
+  bulkSafetyLocked = status?.locked === true;
+  alertArea.style.display = bulkSafetyLocked ? 'flex' : 'none';
+  document.getElementById('bulkStart').disabled = bulkRunning || bulkSafetyLocked;
+  if (!bulkSafetyLocked) return;
+
+  document.getElementById('bulkSafetyTitle').textContent = incident?.title || 'Disparos bloqueados por segurança';
+  document.getElementById('bulkSafetyReason').textContent = incident?.reason || 'A proteção automática interrompeu a campanha.';
+  const occurredAt = incident?.occurredAt ? new Date(incident.occurredAt).toLocaleString('pt-BR') : 'horário não informado';
+  const technical = incident?.technicalError ? ` Erro informado: ${incident.technicalError}` : '';
+  document.getElementById('bulkSafetyDetails').textContent = `Ocorrido em ${occurredAt}. ${incident?.sent || 0} enviados e ${incident?.failed || 0} falhas antes da parada.${technical}`;
+}
+
+async function refreshBulkSafetyStatus() {
+  const status = await window.electronAPI.getBulkSafetyStatus();
+  if (status?.ok) renderBulkSafetyStatus(status);
+  return status;
+}
+
+document.getElementById('bulkSafetyUnlock').addEventListener('click', async () => {
+  const confirmed = await askConfirmation(
+    'Antes de liberar, revise a conexão do WhatsApp, os números da lista e o motivo do alerta. Liberar sem corrigir a causa pode aumentar o risco de bloqueio. Confirma que fez a revisão?',
+    { confirmLabel: 'Revisei e quero liberar' }
+  );
+  if (!confirmed) return;
+  const result = await window.electronAPI.unlockBulkSafety();
+  if (!result?.ok) return alert(result?.error || 'Não foi possível liberar os disparos.');
+  renderBulkSafetyStatus(result);
+  alert('Proteção revisada. Novas campanhas foram liberadas.');
+});
 
 function setBulkImportFeedback(type, message) {
   const feedback = document.getElementById('bulkImportFeedback');
@@ -1489,6 +1704,10 @@ document.getElementById('bulkImportWhatsApp').addEventListener('click', async ()
   setBulkImportButtonsDisabled(true);
   button.textContent = 'Lendo contatos...';
   setBulkImportFeedback('loading', 'Sincronizando a lista de contatos salvos do WhatsApp...');
+  document.getElementById('bulkImportProgressArea').style.display = '';
+  document.getElementById('bulkImportProgressText').textContent = 'Preparando importação gradual...';
+  document.getElementById('bulkImportProgressPercent').textContent = '0%';
+  document.getElementById('bulkImportProgressBar').style.width = '0%';
 
   try {
     const result = await window.electronAPI.importWhatsAppContacts();
@@ -1518,6 +1737,16 @@ document.getElementById('bulkImportWhatsApp').addEventListener('click', async ()
     button.innerHTML = originalContent;
     setBulkImportButtonsDisabled(false);
   }
+});
+
+window.electronAPI.onBulkImportProgress(data => {
+  const percent = Math.max(0, Math.min(100, Number(data?.percent) || 0));
+  document.getElementById('bulkImportProgressArea').style.display = '';
+  document.getElementById('bulkImportProgressText').textContent = data?.message || 'Importando contatos gradualmente...';
+  document.getElementById('bulkImportProgressPercent').textContent = `${percent}%`;
+  document.getElementById('bulkImportProgressBar').style.width = `${percent}%`;
+  const button = document.getElementById('bulkImportWhatsApp');
+  if (button.disabled && percent < 100) button.textContent = `Importando ${percent}%...`;
 });
 
 document.getElementById('bulkImportContacts').addEventListener('click', async () => {
@@ -1558,11 +1787,12 @@ document.getElementById('bulkClearImage').addEventListener('click', () => {
   document.getElementById('bulkClearImage').style.display = 'none';
 });
 
-document.getElementById('bulkMessage').addEventListener('input', updateBulkMessagePreview);
-
 document.querySelectorAll('.tag-chip').forEach(button => {
   button.addEventListener('click', () => {
-    const textarea = document.getElementById('bulkMessage');
+    const textarea = bulkActiveMessageTextarea?.isConnected
+      ? bulkActiveMessageTextarea
+      : getBulkMessageTextareas()[0];
+    if (!textarea) return;
     const tag = button.dataset.tag || '';
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
@@ -1575,21 +1805,42 @@ document.querySelectorAll('.tag-chip').forEach(button => {
 window.electronAPI.onBulkProgress(data => {
   const area = document.getElementById('bulkProgressArea');
   area.style.display = '';
-  document.getElementById('bulkProgressText').textContent = data.error ? 'Envio com falha' : 'Enviando campanha';
   document.getElementById('bulkProgressStats').textContent = `${data.current}/${data.total} • ${data.sent} enviados • ${data.failed} falhas`;
   document.getElementById('bulkProgressBar').style.width = `${Math.round((data.current / data.total) * 100)}%`;
+  if (data.pauseUpdate) {
+    const totalSeconds = Math.max(0, Number(data.remainingSeconds) || 0);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    document.getElementById('bulkProgressText').textContent = totalSeconds
+      ? `Pausa longa • retomada em ${minutes}:${String(seconds).padStart(2, '0')}`
+      : 'Retomando campanha...';
+    return;
+  }
+  document.getElementById('bulkProgressText').textContent = data.safetyStop
+    ? 'Campanha interrompida pela proteção automática'
+    : (data.error ? 'Envio com falha' : 'Enviando campanha');
 
   const line = document.createElement('div');
-  line.className = data.error ? 'bulk-log-error' : 'bulk-log-success';
-  const label = data.contact.name || data.contact.phone;
-  const waitText = Number.isFinite(data.nextDelaySeconds) ? ` • próximo envio em ${data.nextDelaySeconds}s` : '';
-  line.textContent = data.error ? `✕ ${label}: ${data.error}${waitText}` : `✓ ${label}${waitText}`;
+  line.className = data.error || data.safetyStop ? 'bulk-log-error' : 'bulk-log-success';
+  if (data.safetyStop) renderBulkSafetyStatus({ locked: true, incident: data.safetyStop });
+  const label = data.contact?.name || data.contact?.phone || 'Proteção automática';
+  const waitText = Number.isFinite(data.longPauseMinutes)
+    ? ` • pausa longa de ${data.longPauseMinutes} min`
+    : (Number.isFinite(data.nextDelaySeconds) ? ` • próximo envio em ${data.nextDelaySeconds}s` : '');
+  line.textContent = data.safetyStop
+    ? `⛔ ${data.safetyStop.title}: ${data.safetyStop.reason}`
+    : (data.error ? `✕ ${label}: ${data.error}${waitText}` : `✓ ${label}${waitText}`);
   const log = document.getElementById('bulkProgressLog');
   log.appendChild(line);
   log.scrollTop = log.scrollHeight;
 });
 
 document.getElementById('bulkStart').addEventListener('click', async () => {
+  const safetyStatus = await refreshBulkSafetyStatus();
+  if (safetyStatus?.locked) {
+    alert('Os disparos estão bloqueados pela proteção automática. Revise o alerta exibido nesta tela antes de iniciar outra campanha.');
+    return;
+  }
   if (!document.getElementById('bulkConsent').checked) {
     alert('Confirme que os contatos autorizaram o recebimento das mensagens.');
     return;
@@ -1601,8 +1852,13 @@ document.getElementById('bulkStart').addEventListener('click', async () => {
     return;
   }
 
-  const message = document.getElementById('bulkMessage').value.trim();
-  if (!message && !bulkSelectedImagePath) {
+  const messageFields = getBulkMessageTextareas().map(textarea => textarea.value.trim());
+  if (messageFields.length > 1 && messageFields.some(message => !message)) {
+    alert('Preencha todas as variações adicionadas ou remova os campos vazios.');
+    return;
+  }
+  const messages = messageFields.filter(Boolean);
+  if (!messages.length && !bulkSelectedImagePath) {
     alert('Digite uma mensagem ou selecione uma imagem.');
     return;
   }
@@ -1612,7 +1868,13 @@ document.getElementById('bulkStart').addEventListener('click', async () => {
     alert('Informe um intervalo válido entre 3 e 600 segundos. O valor “De” não pode ser maior que o valor “Até”.');
     return;
   }
+  const longPauseSettings = getBulkLongPauseSettings();
+  if (!longPauseSettings) {
+    alert('Informe uma pausa válida: entre 10 e 500 mensagens e entre 1 e 120 minutos.');
+    return;
+  }
   await saveBulkDelaySettings(delayRange);
+  await saveBulkLongPauseSettings(longPauseSettings);
 
   const progressArea = document.getElementById('bulkProgressArea');
   progressArea.style.display = '';
@@ -1625,17 +1887,29 @@ document.getElementById('bulkStart').addEventListener('click', async () => {
   try {
     const result = await window.electronAPI.startBulkSend({
       contacts,
-      message,
+      message: messages[0] || '',
+      messages,
       imagePath: bulkSelectedImagePath,
       delayMinSeconds: delayRange.min,
-      delayMaxSeconds: delayRange.max
+      delayMaxSeconds: delayRange.max,
+      pauseEveryMessages: longPauseSettings.pauseEveryMessages,
+      longPauseMinutes: longPauseSettings.longPauseMinutes,
+      simulatedTyping: document.getElementById('bulkSimulatedTypingEnabled').checked
     });
     if (!result?.ok) {
+      if (result?.safetyLocked) renderBulkSafetyStatus({ locked: true, incident: result.incident });
       alert(result?.error || 'Não foi possível iniciar o envio.');
       return;
     }
-    document.getElementById('bulkProgressText').textContent = result.cancelled ? 'Campanha cancelada' : 'Campanha concluída';
+    document.getElementById('bulkProgressText').textContent = result.safetyStop
+      ? 'Campanha interrompida pela proteção automática'
+      : (result.cancelled ? 'Campanha cancelada' : 'Campanha concluída');
     document.getElementById('bulkProgressStats').textContent = `${result.sent} enviados • ${result.failed} falhas`;
+    if (result.safetyStop) {
+      renderBulkSafetyStatus({ locked: true, incident: result.safetyStop });
+      const technical = result.safetyStop.technicalError ? `\n\nErro informado pelo WhatsApp: ${result.safetyStop.technicalError}` : '';
+      alert(`${result.safetyStop.title}\n\n${result.safetyStop.reason}${technical}\n\nNovas campanhas permanecerão bloqueadas até você revisar e liberar os disparos.`);
+    }
   } catch (err) {
     alert(`Erro durante o envio: ${err.message}`);
   } finally {

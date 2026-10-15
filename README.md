@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/versão-1.2.9-3568cf" alt="Versão 1.2.9">
+  <img src="https://img.shields.io/badge/versão-1.5.0-3568cf" alt="Versão 1.5.0">
   <img src="https://img.shields.io/badge/plataforma-Windows%20x64-0078D4" alt="Windows x64">
   <img src="https://img.shields.io/badge/Electron-43-47848F" alt="Electron 43">
   <img src="https://img.shields.io/badge/IA-Google%20Gemini-8E75B2" alt="Google Gemini">
@@ -35,6 +35,32 @@ O projeto foi desenvolvido como uma solução completa de produto: possui identi
 > [!IMPORTANT]
 > O TurboWhats utiliza automação do WhatsApp Web por meio de `whatsapp-web.js`. Não é uma integração oficial da API WhatsApp Business. Mudanças no WhatsApp Web podem afetar o funcionamento. Use o sistema somente em atendimentos e campanhas autorizados pelos destinatários.
 
+## Novidades da versão 1.5.0
+
+- **Monitoramento de grupos:** comandos iniciados por `!`, respostas por grupo e seleção de um grupo por vez.
+- **Painel em tempo real:** mensagens observadas, respostas enviadas, erros e histórico de atividade.
+- **Digitação simulada nos grupos:** ativa por padrão, com preferência persistente por grupo e indicação na atividade antes do envio.
+- **Compatibilidade atualizada:** suporte aos identificadores de mensagem `_serialized` e `$1`, aplicado antes do registro dos eventos.
+- **Leitura contínua:** eventos e varredura com deduplicação e espera pela decodificação de mensagens inicialmente criptografadas.
+
+## Novidades da versão 1.4.0
+
+- **Variações de campanha:** permite criar até cinco textos e alterná-los em sequência entre os destinatários.
+- **Circuit breaker:** interrompe campanhas diante de restrições, desconexão, falhas consecutivas ou taxa de falhas elevada.
+- **Bloqueio para revisão:** após uma parada de segurança, novos disparos ficam bloqueados até a revisão e liberação manual.
+- **Pausas longas programadas:** permite definir a quantidade de mensagens e a duração da pausa, com contagem regressiva e cancelamento.
+
+- **Digitação simulada nas campanhas:** a aba **Disparos** agora possui um controle próprio para exibir `digitando...` antes de cada mensagem ou imagem enviada.
+- **Configuração persistente:** a preferência de digitação dos disparos é salva automaticamente e restaurada na próxima inicialização.
+- **Importação gradual do WhatsApp:** os contatos salvos são resolvidos e organizados em pequenos lotes, com pausas variáveis entre as consultas.
+- **Progresso visível:** a interface mostra a etapa atual, a porcentagem concluída e uma barra durante a leitura da agenda.
+- **Proteção contra concorrência:** uma segunda importação não pode ser iniciada enquanto a primeira ainda estiver em andamento.
+- **Importação segura para a agenda:** o processo é somente leitura, não envia mensagens e não exclui nem altera contatos da conta do WhatsApp.
+- **Portable atualizado:** a versão `1.4.0` foi empacotada com as novas funções, sem contatos, chaves de API ou configurações pessoais dentro do executável.
+
+> [!NOTE]
+> As pausas reduzem consultas intensivas durante agendas grandes, mas nenhuma automação não oficial pode garantir risco zero de bloqueio. Respeite os termos do WhatsApp e utilize disparos somente com consentimento.
+
 ## O problema
 
 Pequenos negócios frequentemente precisam responder perguntas repetidas, manter um atendimento inicial consistente e organizar contatos sem adotar plataformas complexas ou fragmentar o trabalho entre várias ferramentas.
@@ -55,10 +81,10 @@ O TurboWhats combina oito módulos em uma experiência única:
 
 | Módulo | O que entrega |
 | --- | --- |
-| **Conexão** | QR Code, autenticação, sincronização orientada, reconexão e sessão persistente |
+| **Conexão** | Escolha entre WhatsApp normal e WhatsApp Business, QR Code, autenticação, sincronização orientada, reconexão e sessão persistente |
 | **Respostas** | Primeira mensagem, regras exatas e fallback quando a IA está desligada |
 | **IA & Voz** | Gemini, contexto personalizado, histórico opcional e áudio com ElevenLabs |
-| **Disparos** | Cadastro, importação direta do WhatsApp ou CSV/XLSX, tags, imagem, intervalo e progresso por contato |
+| **Disparos** | Cadastro internacional, importação gradual do WhatsApp ou CSV/XLSX, seleção em grupo, tags, imagem, digitação simulada, intervalo aleatório e progresso por contato |
 | **Disparo de Email** | Gmail com Senha de app, destinatários, editor com imagens, anexos, tags e progresso individual |
 | **Bot Instagram** | Sessão persistente, palavras-chave sem distinção de acentos, resposta pública, Direct e prevenção de duplicidade |
 | **Métricas** | Envios do dia, pausas, intervalos, falhas, respostas da IA e atividade por hora e minuto |
@@ -80,7 +106,7 @@ A chave do Gemini é testada antes de ser salva. A IA possui ativação independ
 
 ### Digitação simulada
 
-Quando ativada, a conversa exibe **digitando...** antes de cada resposta automática. O tempo é calculado pelo tamanho do texto, com limites mínimos e máximos para manter o atendimento natural sem atrasos excessivos. A opção vale para primeira mensagem, IA, regras e fallback, mas não interfere em campanhas de disparo.
+Quando ativada, a conversa exibe **digitando...** antes de cada resposta automática. O tempo é calculado pelo tamanho do texto, com limites mínimos e máximos para manter o atendimento natural sem atrasos excessivos. A opção geral vale para primeira mensagem, IA, regras e fallback. As campanhas possuem uma caixa própria, permitindo ativar ou desativar a digitação simulada somente nos disparos selecionados.
 
 ### Campanhas com menos erros de telefone
 
@@ -198,6 +224,8 @@ flowchart LR
 - **Scanner a cada 8 segundos:** recupera mensagens com notificação que não chegaram pelo evento em tempo real.
 - **Fila de 2 segundos:** agrupa mensagens consecutivas antes de consultar a IA.
 - **Digitação proporcional:** calcula entre 0,9 e 6 segundos conforme o tamanho da resposta.
+- **Digitação separada por fluxo:** respostas automáticas e campanhas possuem controles independentes e persistentes.
+- **Importação gradual:** resolve identificadores de contatos em lotes pequenos, com progresso visual e pausas aleatórias.
 - **Gemini com timeout de 90 segundos:** reduz falsos erros em conexões lentas.
 - **Até três tentativas de IA:** repete falhas temporárias com espera progressiva.
 - **Configuração local protegida:** usa `safeStorage` para chaves e Senhas de app quando a criptografia do Windows está disponível.
@@ -254,7 +282,7 @@ Boas práticas para operação:
 O build local mais recente gera:
 
 ```text
-dist\TurboWhats-Portable-1.2.9.exe
+dist\TurboWhats-Portable-1.4.0.exe
 ```
 
 As versões publicadas ficam na página de [Releases](https://github.com/louro2023/ChatbotcomIA/releases).
@@ -272,11 +300,7 @@ O executável possui aproximadamente 203 MB porque inclui o ambiente Electron e 
 > [!NOTE]
 > O projeto ainda não possui certificado comercial de assinatura. O Windows SmartScreen pode exibir **Editor desconhecido** na primeira execução. Confira a origem e o hash antes de autorizar.
 
-SHA-256 do build local da versão 1.2.9:
-
-```text
-EA58C2A3C4E568018EF47625611D0B3767C3F939BBC4A0C01D839B87F494CC8B
-```
+O SHA-256 da versão 1.5.0 acompanha o executável na [Release v1.5.0](https://github.com/louro2023/ChatbotcomIA/releases/tag/v1.5.0).
 
 ### Executar pelo código-fonte
 
@@ -294,9 +318,12 @@ O inicializador do Windows libera o terminal e mantém somente a janela do Turbo
 ### 1. Conectar o WhatsApp
 
 1. Abra **Status**.
-2. No celular, acesse **WhatsApp > Aparelhos conectados > Conectar aparelho**.
-3. Leia o QR Code.
-4. Mantenha o TurboWhats aberto durante a autenticação e sincronização.
+2. Escolha **WhatsApp** ou **WhatsApp Business**, conforme o aplicativo instalado no celular que possui a conta.
+3. No aplicativo escolhido, acesse **Aparelhos conectados > Conectar aparelho**.
+4. Leia o QR Code.
+5. Mantenha o TurboWhats aberto durante a autenticação e sincronização.
+
+Os dois aplicativos usam o mesmo mecanismo oficial de aparelhos conectados do WhatsApp Web. A escolha feita no TurboWhats identifica o aplicativo correto nas instruções; o QR Code é gerado pela mesma conexão compatível com ambos.
 
 Use **Reconectar** para recuperar a sessão atual. Use **Resetar conexão** para encerrar a sessão local e gerar um QR Code novo.
 
@@ -352,12 +379,51 @@ O módulo de campanhas permite:
 - selecionar destinatários individualmente ou em grupo;
 - excluir de uma vez todos os contatos selecionados;
 - usar texto, imagem ou ambos;
+- criar até cinco variações do texto, alternadas em sequência entre os destinatários;
 - personalizar mensagens com tags;
+- ativar opcionalmente a digitação simulada antes de cada envio;
 - definir um intervalo mínimo e máximo; uma nova espera é sorteada antes de cada próximo envio;
+- programar uma pausa longa após uma quantidade configurável de mensagens enviadas;
 - acompanhar enviados e falhas;
 - cancelar uma campanha em andamento.
 
 Na importação direta, o TurboWhats considera somente contatos salvos e registrados no WhatsApp. O próprio usuário, grupos, contatos bloqueados, identificadores sem número disponível e telefones já cadastrados são ignorados. Os identificadores modernos `@lid` são convertidos para o número correspondente antes de salvar.
+
+A leitura é gradual: os identificadores são resolvidos em pequenos lotes, com pausas variáveis, enquanto uma barra informa o andamento. A importação é somente leitura e não envia mensagens aos contatos; a execução gradual reduz acessos intensivos ao WhatsApp Web durante a sincronização de agendas grandes.
+
+Durante esse fluxo, o sistema:
+
+1. lê os contatos já sincronizados na sessão conectada;
+2. mantém somente contatos pessoais salvos e registrados no WhatsApp;
+3. resolve identificadores modernos em lotes de até 25 contatos, aguardando de 0,7 a 1,4 segundo entre os lotes;
+4. organiza os resultados em lotes de até 50 contatos, com pequenas pausas adicionais;
+5. remove duplicados, ordena os nomes e adiciona no máximo 5.000 registros à lista do TurboWhats;
+6. informa quantos contatos foram adicionados, ignorados, não resolvidos ou limitados.
+
+Os contatos importados ficam somente na base local do TurboWhats. Excluir um contato ou usar **Excluir selecionados** não remove nada da agenda do telefone ou da conta conectada.
+
+### Variações da mensagem
+
+Cada campanha pode ter de uma a cinco variações de texto. O primeiro contato recebe a primeira variação, o segundo recebe a segunda e, depois da última variação, a sequência recomeça. As tags de personalização são aplicadas ao texto escolhido para cada contato. Todos os campos adicionados precisam estar preenchidos antes do início da campanha.
+
+As variações evitam uma comunicação excessivamente repetitiva, mas não garantem proteção contra bloqueios e não substituem consentimento, limites responsáveis e o uso da plataforma oficial.
+
+### Pausas longas programadas
+
+O usuário define quantas mensagens devem ser concluídas antes da pausa e sua duração em minutos. Os padrões são 50 mensagens e 15 minutos. Durante a pausa, a tela mostra uma contagem regressiva e o botão **Cancelar** continua disponível. Ao final, a campanha retoma automaticamente; se não houver outro contato, nenhuma pausa desnecessária é iniciada.
+
+A pausa longa substitui o intervalo curto naquele ponto da campanha. Ela reduz sequências contínuas, mas não garante proteção contra bloqueios nem torna a automação do WhatsApp Web uma integração oficial.
+
+### Digitação simulada e intervalo das campanhas
+
+O controle **Digitação simulada nos disparos** é independente da opção existente em **IA & Voz**. Quando marcado, antes de cada envio o TurboWhats:
+
+1. abre o chat do destinatário selecionado;
+2. apresenta o estado `digitando...` por um período proporcional ao texto personalizado;
+3. envia o texto, a imagem ou os dois;
+4. aguarda um valor sorteado entre os intervalos mínimo e máximo antes de seguir para o próximo contato.
+
+Se o WhatsApp não permitir apresentar o estado de digitação para determinado identificador, o envio ainda é tentado normalmente. O tempo da digitação é somado ao intervalo aleatório configurado e a opção permanece salva para as próximas campanhas.
 
 Colunas reconhecidas na importação:
 
@@ -395,7 +461,7 @@ Fluxo de configuração:
 3. Cole uma URL no formato `https://www.instagram.com/p/CODIGO/` ou `https://www.instagram.com/reel/CODIGO/`.
 4. Cadastre até 100 palavras-chave separadas por vírgula, ponto e vírgula ou linha.
 5. Ative a resposta no comentário, o envio por Direct ou ambos.
-6. Escreva a mensagem, confirme o uso autorizado e inicie o bot.
+6. Escreva separadamente a resposta pública e a mensagem de Direct para cada opção ativada, confirme o uso autorizado e inicie o bot.
 
 Após o login, a janela visual é necessária somente para autenticar ou renovar uma sessão expirada. Ao iniciar o monitor, o TurboWhats fecha essa janela e reinicia o mesmo perfil do Instagram em modo oculto. Comentários e Directs continuam sendo processados em segundo plano enquanto o TurboWhats estiver aberto.
 
@@ -404,7 +470,7 @@ O primeiro ciclo cria uma linha de base e não responde aos comentários antigos
 - considera somente comentários novos encontrados na publicação configurada;
 - normaliza letras e acentos, fazendo `currículo`, `CURRICULO` e `Currículo` corresponderem à mesma palavra;
 - ativa o fluxo quando qualquer uma das palavras estiver presente no comentário;
-- personaliza a mensagem com `{Nome}`, `{PrimeiroNome}`, `{Link}`, `{Data}` e `{Hora}`;
+- permite personalizar separadamente a resposta pública e o Direct com `{Nome}`, `{PrimeiroNome}`, `{Link}`, `{Data}` e `{Hora}`;
 - registra separadamente respostas públicas e Directs concluídos;
 - não repete a mesma ação para o mesmo usuário naquela publicação;
 - retorna à publicação após enviar um Direct e continua monitorando;
@@ -533,7 +599,7 @@ O `electron-builder` gera `dist\TurboWhats-Portable-<versão>.exe`. A compilaç�
 
 Durante a extração inicial do portátil, o empacotador exibe uma tela de abertura com a identidade TurboWhats. Assim, o usuário recebe retorno visual imediatamente após executar o arquivo, antes mesmo de o Electron estar disponível para criar a janela principal.
 
-## Testes realizados na versão 1.2.9
+## Testes realizados na versão 1.4.0
 
 - verificação de sintaxe dos processos principal, preload, renderer e scripts;
 - smoke test do Electron;
@@ -541,6 +607,8 @@ Durante a extração inicial do portátil, o empacotador exibe uma tela de abert
 - teste de montagem e formatação internacional de telefones;
 - teste do contato brasileiro `+55 (21) 98168-2922`;
 - validação do sorteio de intervalos, incluindo os limites mínimo e máximo;
+- validação da caixa persistente de digitação simulada nas campanhas;
+- validação visual do progresso da importação gradual de contatos do WhatsApp;
 - validação dos cálculos, séries horárias e indicadores do painel de métricas;
 - inspeção visual dos créditos na tela de abertura e validação do contato externo;
 - validação da conexão SMTP, configuração criptografada e mensagens de erro do Gmail;
@@ -558,6 +626,7 @@ Durante a extração inicial do portátil, o empacotador exibe uma tela de abert
 - teste controlado da mesma sessão em modo headless: comentário e Direct localizados, digitados e limpos sem abrir janela nem realizar envio;
 - confirmação do envio somente depois que o Instagram retirar o texto do editor;
 - teste automatizado da aba Instagram: persistência, tags, início, contadores, logs e digitação durante o monitoramento;
+- validação de mensagens independentes para resposta pública e Direct, incluindo migração da configuração antiga compartilhada;
 - validação geométrica da barra de tags abaixo do editor e do diálogo de confirmação centralizado na janela;
 - validação do controle persistente por comentário, usuário, publicação e tipo de ação;
 - recuperação manual de comentários visíveis anteriormente registrados, sem duplicar correspondências nem ações concluídas;
@@ -637,6 +706,21 @@ Durante a extração inicial do portátil, o empacotador exibe uma tela de abert
 - lembre que o mesmo usuário recebe cada ação somente uma vez por publicação;
 - se o Instagram tiver alterado a interface Web, atualize o TurboWhats antes de continuar.
 
+### A importação de contatos está demorando
+
+- isso pode ser esperado em agendas grandes, pois a versão 1.4.0 processa contatos gradualmente;
+- acompanhe a porcentagem e a etapa exibidas abaixo dos botões de importação;
+- mantenha o WhatsApp conectado e o TurboWhats aberto até a conclusão;
+- não clique novamente durante o processo: o sistema bloqueia importações simultâneas;
+- se nenhum contato aparecer, abra **Nova conversa** no WhatsApp e confirme que os contatos estão salvos e sincronizados.
+
+### A digitação simulada não aparece no disparo
+
+- confirme que **Digitação simulada nos disparos** estava marcada antes de iniciar a campanha;
+- a configuração de digitação da aba **IA & Voz** controla respostas automáticas, não campanhas;
+- alguns identificadores do WhatsApp podem não aceitar o estado `digitando...`; nesse caso, o sistema continua com o envio para não interromper a campanha;
+- consulte o progresso da campanha para confirmar se a mensagem foi enviada ou se ocorreu uma falha real.
+
 ## Evolução do projeto
 
 Possíveis próximos passos:
@@ -694,3 +778,35 @@ Sistema desenvolvido por **[Henrique Louro](https://github.com/louro2023)**.
   Desenvolvido por Henrique Louro · Contato: 21981682922<br>
   © 2026 Henrique Louro · Todos os direitos reservados.
 </p>
+
+## Monitoramento de Grupos
+
+**Digitação simulada:** a opção **Simular digitação antes de responder** fica ativa por padrão e pode ser desmarcada no grupo selecionado. O tempo é calculado pelo tamanho da resposta, entre 900 ms e 6 segundos. A atividade exibe **Digitando a resposta...** antes do envio; desativar o grupo durante essa espera cancela a resposta pendente.
+
+Após selecionar um grupo, a lista é ocultada e a tela mostra somente sua configuração e o painel de monitoramento. Use **Trocar grupo** para voltar à escolha. Apenas um grupo por conta pode estar com monitoramento ativo: ativar outro desativa o anterior, preservando os comandos cadastrados.
+
+O painel exibe mensagens observadas, respostas enviadas, erros de envio e a atividade recente (até 40 eventos visíveis, dos 100 últimos mantidos em memória). Os contadores são da sessão atual do aplicativo e são atualizados a cada dois segundos. Falhas de leitura, envio e atualização ficam visíveis; o histórico mantém a falha mesmo após um envio posterior bem-sucedido. Desconectar mantém o grupo selecionado e indica a indisponibilidade.
+
+Compatibilidade com WhatsApp Web: versões recentes trocaram o campo interno do identificador de mensagem de `_serialized` para `$1`. O leitor aceita os dois formatos. `Electron/whatsapp-compat.js` também instala uma ponte de compatibilidade na sessão para os modelos e operações de envio da biblioteca, sem editar `node_modules` nem apagar a sessão. Referências: [issue #201845](https://github.com/wwebjs/whatsapp-web.js/issues/201845) e [PR #201850](https://github.com/wwebjs/whatsapp-web.js/pull/201850). O teste `node scripts/test-whatsapp-compat.js` reproduz o formato com `$1` observado na sessão real.
+
+Diagnóstico conectado somente de leitura: `node scripts/diagnose-group-live.js`. O comando se conecta ao navegador já aberto no ambiente de desenvolvimento, verifica os formatos dos IDs e executa a identificação com transporte simulado. Não envia mensagens nem mostra os textos dos participantes.
+
+O leitor acompanha novas mensagens por eventos e por uma varredura dos modelos do WhatsApp Web a cada dois segundos, inclusive em grupos já lidos. Eventos e varredura compartilham a deduplicação. A leitura começa ao conectar e termina ao desconectar; o histórico existente na conexão é usado apenas como referência, sem respostas retroativas. A aba mostra o horário da última verificação, mensagens observadas, respostas e o resultado da última identificação. Erros de leitura e envio são registrados nos logs locais.
+
+Para testar, outro participante deve enviar exatamente o comando cadastrado (por exemplo, `!privacy`). Mensagens enviadas pela própria conta conectada são ignoradas, e esse motivo aparece no diagnóstico. O sistema não responde quando o grupo ou o comando estiver desativado, nem quando o comando estiver apenas dentro de uma frase.
+
+O teste `node scripts/test-group-reader.js` simula a ligação real dos eventos, perda de evento recuperada pela varredura, grupo já lido, mensagens próprias, deduplicação, histórico, falhas e reconexão.
+
+Use **Configurar** ou clique no nome do grupo para abrir o editor. Marcar **Monitorar** também seleciona o grupo e abre os campos de comando e resposta. O painel do grupo permite ativar o monitoramento e mostra o estado atual. As fotos são atualizadas sem reconstruir os controles, preservando cliques e rascunhos. A lista fica oculta durante a configuração; em janelas menores os painéis de configuração e atividade ficam empilhados.
+
+O teste `node scripts/test-groups-ui.js` usa 40 grupos simulados, o CSS real e o módulo de monitoramento com transporte simulado. Verifica seleção pelo controle Monitorar, cadastro por clique, validação, duplicatas, edição, exclusão, ativação individual, isolamento entre grupos, falhas ao salvar, busca, fotos, reconexão e envio simulado. Capturas de tela em 1440, 1024 e 900 pixels ficam em `.build-cache/group-ui-tests/`.
+
+A aba **Monitoramento de Grupos** carrega os grupos da conta conectada, com fotos quando dispon?veis. Selecione um grupo, cadastre comandos como `!ajuda` e ative **Monitorar**. Cada comando possui resposta pr?pria, edi??o, exclus?o e ativa??o individual. As respostas preservam quebras de linha, emojis e links.
+
+A correspond?ncia usa a mensagem completa, ignorando mai?sculas e espa?os nas extremidades: `!AJUDA` corresponde a `!ajuda`, mas `!ajuda agora` n?o. Comandos n?o podem conter espa?os e devem come?ar com `!`. Mensagens pr?prias e grupos desativados s?o ignorados. O atendimento privado e a IA continuam independentes.
+
+O monitor acompanha novas mensagens enquanto o aplicativo est? aberto e conectado; n?o reprocessa hist?rico. As configura??es ficam em `app-data/group-monitor.json`, separadas por identificador da conta, e sobrevivem ? reconex?o e reinicializa??o. Fotos indispon?veis n?o impedem a listagem. Use **Atualizar grupos** para atualizar a participa??o em grupos.
+
+Valida??o do m?dulo: `node scripts/test-group-monitor.js` (tamb?m inclu?da em `npm run check`).
+
+A pesquisa na aba de grupos filtra por nome sem distinguir maiúsculas e acentos. A listagem consulta os modelos de grupos diretamente, sem serializar conversas privadas, e carrega fotos em segundo plano.

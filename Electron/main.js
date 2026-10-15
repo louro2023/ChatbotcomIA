@@ -185,10 +185,106 @@ const runtimeLogPath = path.join(persistentDataRoot, 'runtime-errors.log');
 const messageTrackerLogPath = path.join(persistentDataRoot, 'message-tracker.log');
 const geminiUsagePath = path.join(persistentDataRoot, 'gemini-usage.json');
 const metricsPath = path.join(persistentDataRoot, 'metrics.json');
+const bulkSafetyStatePath = path.join(persistentDataRoot, 'bulk-safety-state.json');
 const firstMessageStatePath = path.join(persistentDataRoot, 'first-message-state.json');
 const instagramStatePath = path.join(persistentDataRoot, 'instagram-monitor-state.json');
 const instagramSessionPath = path.join(persistentDataRoot, 'instagram-session');
 const delay = ms => new Promise(res => setTimeout(res, ms));
+const { classifyBulkSendError, evaluateBulkCircuitBreaker } = require('./bulk-safety');
+const { normalizeBulkMessageVariations, selectBulkMessageVariation } = require('./bulk-messages');
+const { normalizeBulkLongPauseSettings, shouldTakeBulkLongPause } = require('./bulk-pacing');
+const { createGroupMonitor } = require('./group-monitor');
+const { recordGroupActivity } = require('./group-runtime');
+const { createGroupReader, readGroupMessagesFromPage, registerGroupMessageEvents } = require('./group-reader');
+const { installWhatsAppMessageKeyCompatibility, withWhatsAppCompatibility } = require('./whatsapp-compat');
+let groupReaderStatus = { running: false, lastScanAt: '', error: '', groups: {} };
+function reportGroupDecision(event) {
+  const previous = groupReaderStatus.groups[event.groupId] || { received: 0, sent: 0 };
+  groupReaderStatus.groups[event.groupId] = recordGroupActivity(previous, event);
+  if (event.decision !== 'no-match') {
+    logMessageTracker(`grupo:${event.decision}`, `${hashContactId(event.groupId)} via ${event.source}${event.error ? `: ${event.error}` : ''}`);
+  }
+}
+const groupMonitor = createGroupMonitor({
+  report: reportGroupDecision,
+  typing: (id, text) => simulateWhatsAppTyping(id, text),
+  read: () => {
+    const file = path.join(persistentDataRoot, 'group-monitor.json');
+    return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
+  },
+  write: state => {
+    fs.mkdirSync(persistentDataRoot, { recursive: true });
+    const file = path.join(persistentDataRoot, 'group-monitor.json');
+    fs.writeFileSync(`${file}.tmp`, JSON.stringify(state, null, 2));
+    fs.renameSync(`${file}.tmp`, file);
+  },
+  account: () => connectionState.connected ? client.info?.wid?._serialized : '',
+  send: async (id, text) => {
+    try {
+      const result = await client.sendMessage(id, text);
+      if (!result?.id) throw new Error('O WhatsApp não confirmou a criação da resposta. Verifique a conexão e a permissão para enviar neste grupo.');
+      recordOutboundMetric(true, 'group-command');
+    }
+    catch (error) { recordOutboundMetric(false, 'group-command'); throw error; }
+  }
+});
+const groupReader = createGroupReader({
+  snapshot: async () => {
+    const compatibility = await client.pupPage.evaluate(installWhatsAppMessageKeyCompatibility);
+    if (compatibility.patchedPrototypes) logMessageTracker('grupos:compatibilidade', 'Identificadores $1 normalizados para _serialized');
+    return client.pupPage.evaluate(readGroupMessagesFromPage);
+  },
+  handle: (message, source) => groupMonitor.handle(message, source),
+  onStatus: status => { groupReaderStatus = { ...groupReaderStatus, ...status }; },
+  onError: (error, groupId) => {
+    logRuntimeError('grupos:leitura', error);
+    if (groupId) groupReaderStatus.groups[groupId] = { ...groupReaderStatus.groups[groupId], lastDecision: 'send-error', error: error.message };
+  }
+});
+ipcMain.handle('groups:runtime-status', async () => ({
+  ...groupReaderStatus, connected: connectionState.connected,
+  account: connectionState.connected ? client.info?.wid?._serialized : ''
+}));
+let groupListPending = null;
+ipcMain.handle('groups:list', async () => {
+  if (!connectionState.connected) return { ok: false, error: 'Conecte o WhatsApp para carregar os grupos.' };
+  if (groupListPending) return groupListPending;
+  groupListPending = (async () => {
+    try {
+      const account = client.info?.wid?._serialized;
+      const settings = groupMonitor.settings();
+      const groups = await client.pupPage.evaluate(require('./group-discovery').readWhatsAppGroupSummaries);
+      if (!connectionState.connected || account !== client.info?.wid?._serialized) throw new Error('A conta mudou. Atualize a lista de grupos.');
+      return { ok: true, account, groups, settings };
+    } catch (error) {
+      logRuntimeError('groups:list', error);
+      return { ok: false, error: 'Não foi possível carregar os grupos do WhatsApp. Aguarde a sincronização e clique em Atualizar grupos.', details: error.message };
+    }
+    finally { groupListPending = null; }
+  })();
+  return groupListPending;
+});
+ipcMain.handle('groups:photo', async (_event, { account, groupId } = {}) => {
+  if (!connectionState.connected || account !== client.info?.wid?._serialized || !String(groupId).endsWith('@g.us')) return '';
+  try {
+    const url = await client.getProfilePicUrl(groupId);
+    if (!url) return '';
+    const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    const mime = response.headers.get('content-type')?.split(';')[0];
+    if (!response.ok || !/^image\/(jpeg|png|webp)$/.test(mime)) return '';
+    const bytes = Buffer.from(await response.arrayBuffer());
+    return bytes.length <= 500000 ? `data:${mime};base64,${bytes.toString('base64')}` : '';
+  } catch (_) { return ''; }
+});
+ipcMain.handle('groups:update', async (_event, payload) => {
+  try {
+    if (!connectionState.connected || payload?.account !== client.info?.wid?._serialized) throw new Error('A conta mudou ou está desconectada. Atualize os grupos.');
+    const groups = await client.pupPage.evaluate(require('./group-discovery').readWhatsAppGroupSummaries);
+    if (!groups.some(group => group.id === payload.groupId)) throw new Error('Grupo indisponível nesta conta. Atualize os grupos.');
+    if (!connectionState.connected || payload.account !== client.info?.wid?._serialized) throw new Error('A conta mudou. Atualize os grupos.');
+    return { ok: true, settings: groupMonitor.update(payload) };
+  } catch (error) { return { ok: false, error: error.message }; }
+});
 
 function migratePersistentData() {
   fs.mkdirSync(persistentDataRoot, { recursive: true });
@@ -513,20 +609,23 @@ async function getChatForSimulatedTyping(contactId) {
   }
 }
 
+async function simulateWhatsAppTyping(to, text) {
+  await delay(250);
+  try {
+    const chat = await getChatForSimulatedTyping(to);
+    await chat.sendStateTyping();
+    await delay(calculateSimulatedTypingDelay(text));
+  } catch (error) {
+    // Alguns contatos @lid não podem ser resolvidos para exibir o estado, mas
+    // isso nunca deve impedir o envio real da mensagem.
+    console.warn(`Não foi possível exibir "digitando" para ${to}: ${error.message}`);
+  }
+}
+
 async function sendWhatsAppText(to, text, source = 'automatic') {
   try {
-    const simulatedTypingEnabled = loadConfig().simulatedTypingEnabled !== false;
-    if (simulatedTypingEnabled) {
-      await delay(250);
-      try {
-        const chat = await getChatForSimulatedTyping(to);
-        await chat.sendStateTyping();
-        await delay(calculateSimulatedTypingDelay(text));
-      } catch (error) {
-        // Some modern @lid contacts cannot be resolved by getChatById. Sending
-        // directly still works, so typing status must never block the reply.
-        console.warn(`Não foi possível exibir "digitando" para ${to}: ${error.message}`);
-      }
+    if (loadConfig().simulatedTypingEnabled !== false) {
+      await simulateWhatsAppTyping(to, text);
     }
     await client.sendMessage(to, text);
     recordOutboundMetric(true, source);
@@ -537,6 +636,7 @@ async function sendWhatsAppText(to, text, source = 'automatic') {
 }
 
 const DEFAULT_CONFIG = {
+  whatsappAccountType: 'personal',
   rules: [],
   defaultMessage: '',
   defaultNoReply: '',
@@ -547,10 +647,13 @@ const DEFAULT_CONFIG = {
   aiUseConversation: true,
   aiVoiceEnabled: false,
   simulatedTypingEnabled: true,
+  bulkSimulatedTypingEnabled: false,
   elevenLabsApiKey: '',
   elevenLabsVoiceId: '21m00Tcm4TlvDq8ikWAM',
   bulkDelayMinSeconds: 10,
   bulkDelayMaxSeconds: 20,
+  bulkPauseEveryMessages: 50,
+  bulkLongPauseMinutes: 15,
   bulkContacts: [],
   emailSenderAddress: '',
   emailSenderName: '',
@@ -562,12 +665,20 @@ const DEFAULT_CONFIG = {
   instagramKeywords: '',
   instagramReplyComment: true,
   instagramSendDirect: false,
-  instagramMessage: '',
+  instagramCommentMessage: '',
+  instagramDirectMessage: '',
   instagramMonitorIntervalSeconds: 20
 };
 
 function decryptStoredConfig(storedConfig) {
   const config = { ...DEFAULT_CONFIG, ...storedConfig };
+  const legacyInstagramMessage = String(storedConfig?.instagramMessage || '');
+  if (!String(storedConfig?.instagramCommentMessage || '').trim()) {
+    config.instagramCommentMessage = legacyInstagramMessage;
+  }
+  if (!String(storedConfig?.instagramDirectMessage || '').trim()) {
+    config.instagramDirectMessage = legacyInstagramMessage;
+  }
   if (config.aiApiKeyEncrypted) {
     try {
       if (safeStorage.isEncryptionAvailable()) {
@@ -606,6 +717,10 @@ function decryptStoredConfig(storedConfig) {
 
 function prepareConfigForStorage(config) {
   const storedConfig = { ...config };
+  const legacyInstagramMessage = String(storedConfig.instagramMessage || '');
+  if (!String(storedConfig.instagramCommentMessage || '').trim()) storedConfig.instagramCommentMessage = legacyInstagramMessage;
+  if (!String(storedConfig.instagramDirectMessage || '').trim()) storedConfig.instagramDirectMessage = legacyInstagramMessage;
+  delete storedConfig.instagramMessage;
   const apiKey = String(storedConfig.aiApiKey || '').trim();
   const elevenLabsApiKey = String(storedConfig.elevenLabsApiKey || '').trim();
   const emailAppPassword = String(storedConfig.emailAppPassword || '').replace(/\s+/g, '');
@@ -703,6 +818,8 @@ async function sendConfiguredFirstMessage(contactId, message) {
 
 let mainWindow = null;
 let bulkJob = null;
+let bulkImportRunning = false;
+let bulkSafetyRuntimeState = null;
 let emailJob = null;
 let instagramBrowser = null;
 let instagramPage = null;
@@ -754,7 +871,8 @@ function resolveWhatsAppBrowserExecutable() {
 
 const whatsappBrowserExecutable = resolveWhatsAppBrowserExecutable();
 
-const client = new Client({
+const CompatibleWhatsAppClient = withWhatsAppCompatibility(Client);
+const client = new CompatibleWhatsAppClient({
   authStrategy: new LocalAuth({
     clientId: 'cchatbot',
     dataPath: sessionPath
@@ -785,6 +903,7 @@ const QRCode = require('qrcode');
 let connectionState = {
   connected: false,
   attempting: false,
+  initializing: false,
   lastError: null,
   retryCount: 0,
   maxRetries: 5
@@ -792,6 +911,8 @@ let connectionState = {
 
 // ===== EVENT HANDLERS COM LOGGING DETALHADO =====
 client.on('qr', qr => {
+  const accountType = normalizeWhatsAppAccountType(loadConfig().whatsappAccountType);
+  const accountLabel = whatsappAccountTypeLabel(accountType);
   connectionState.attempting = true;
   connectionState.retryCount = 0;
   console.log('📱 QR Code recebido, escaneie com seu WhatsApp');
@@ -803,7 +924,9 @@ client.on('qr', qr => {
       mainWindow.webContents.send('wa-qr', url);
       mainWindow.webContents.send('wa-status', {
         connected: false,
-        message: '📱 Escaneie o QR Code com seu WhatsApp para conectar',
+        accountType,
+        accountLabel,
+        message: `Escaneie o QR Code com o ${accountLabel} para conectar`,
         loading: true,
         phase: 'qr',
         progress: 10
@@ -858,6 +981,7 @@ client.on('auth_failure', msg => {
   stopUnreadScanner();
   connectionState.lastError = msg;
   connectionState.attempting = false;
+  connectionState.initializing = false;
   console.error('❌ Falha na autenticação:', msg);
 
   const errorMsg = typeof msg === 'object' ? JSON.stringify(msg) : String(msg);
@@ -889,17 +1013,23 @@ client.on('auth_failure', msg => {
 });
 
 client.on('ready', () => {
+  const accountType = normalizeWhatsAppAccountType(loadConfig().whatsappAccountType);
   connectionState.connected = true;
   connectionState.attempting = false;
+  connectionState.initializing = false;
   connectionState.retryCount = 0;
   connectionState.lastError = null;
   console.log('✅ WhatsApp conectado e pronto para usar!');
   console.log(`🕐 Conectado em: ${new Date().toLocaleString('pt-BR')}`);
   startUnreadScanner();
+  groupReaderStatus = { running: false, lastScanAt: '', error: '', groups: {} };
+  void groupReader.start();
   if (mainWindow) {
     mainWindow.webContents.send('wa-qr', null);
     mainWindow.webContents.send('wa-status', {
       connected: true,
+      accountType,
+      accountLabel: whatsappAccountTypeLabel(accountType),
       message: 'Conectado com sucesso! 🎉',
       phase: 'ready',
       progress: 100
@@ -910,6 +1040,7 @@ client.on('ready', () => {
 client.on('disconnected', (reason) => {
   stopUnreadScanner();
   connectionState.connected = false;
+  connectionState.initializing = false;
   console.log('⚠️ WhatsApp desconectado. Motivo:', reason);
 
   let errorMessage = 'Desconectado';
@@ -951,6 +1082,65 @@ async function attemptReconnect() {
       console.log(`⏳ Aguardando 5s antes da tentativa ${connectionState.retryCount}/${connectionState.maxRetries}`);
       setTimeout(attemptReconnect, 5000);
     }
+  }
+}
+
+function normalizeWhatsAppAccountType(value) {
+  return value === 'business' ? 'business' : 'personal';
+}
+
+function whatsappAccountTypeLabel(value) {
+  return normalizeWhatsAppAccountType(value) === 'business' ? 'WhatsApp Business' : 'WhatsApp';
+}
+
+function showWhatsAppAccountTypeChoice(message = 'Escolha qual aplicativo será conectado antes de gerar o QR Code.') {
+  connectionState.connected = false;
+  connectionState.attempting = false;
+  connectionState.initializing = false;
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send('wa-qr', null);
+  mainWindow.webContents.send('wa-status', {
+    connected: false,
+    phase: 'account-type',
+    progress: 0,
+    message
+  });
+}
+
+async function initializeWhatsAppClient(accountType) {
+  if (connectionState.connected) return { ok: true, alreadyConnected: true };
+  if (connectionState.initializing) {
+    return { ok: false, error: 'A conexão com o WhatsApp já está sendo iniciada.' };
+  }
+
+  const normalizedType = normalizeWhatsAppAccountType(accountType || loadConfig().whatsappAccountType);
+  const config = loadConfig();
+  config.whatsappAccountType = normalizedType;
+  saveConfig(config);
+  connectionState.initializing = true;
+  connectionState.attempting = true;
+  connectionState.lastError = null;
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('wa-status', {
+      connected: false,
+      accountType: normalizedType,
+      accountLabel: whatsappAccountTypeLabel(normalizedType),
+      message: `Preparando a conexão com o ${whatsappAccountTypeLabel(normalizedType)}...`,
+      loading: true,
+      phase: 'starting',
+      progress: 5
+    });
+  }
+
+  try {
+    await client.initialize();
+    return { ok: true, accountType: normalizedType };
+  } catch (error) {
+    connectionState.initializing = false;
+    connectionState.attempting = false;
+    connectionState.lastError = error.message;
+    throw error;
   }
 }
 
@@ -1112,6 +1302,8 @@ async function handleIncomingMessage(msg, source = 'event') {
   }
 }
 
+registerGroupMessageEvents(client, groupReader);
+
 client.on('message', msg => {
   if (msg?.fromMe || !/@(c\.us|lid)$/.test(String(msg?.from || ''))) return;
   // The event only wakes the scanner. It never sends directly: this gives the
@@ -1230,6 +1422,7 @@ function startUnreadScanner() {
 }
 
 function stopUnreadScanner() {
+  groupReader.stop();
   if (unreadScanTimer) clearInterval(unreadScanTimer);
   unreadScanTimer = null;
 }
@@ -1285,13 +1478,18 @@ function createWindow() {
 
   mainWindow.on('closed', () => { mainWindow = null; });
 
-  // ✅ Inicializa cliente WhatsApp APÓS janela estar pronta
-  console.log('🚀 Iniciando cliente WhatsApp...');
-  client.initialize().catch(err => {
-    console.error('❌ Erro ao inicializar WhatsApp:', err);
-    if (mainWindow) {
-      mainWindow.webContents.send('wa-status', { connected: false, error: err.message });
+  // Sessões existentes continuam automaticamente. Uma conexão nova exige
+  // que o usuário escolha o aplicativo antes de o QR Code ser solicitado.
+  mainWindow.webContents.once('did-finish-load', () => {
+    if (!directoryHasEntries(localAuthSessionPath())) {
+      showWhatsAppAccountTypeChoice();
+      return;
     }
+    console.log('🚀 Iniciando sessão existente do WhatsApp...');
+    initializeWhatsAppClient().catch(err => {
+      console.error('❌ Erro ao inicializar WhatsApp:', err);
+      if (mainWindow) mainWindow.webContents.send('wa-status', { connected: false, error: err.message });
+    });
   });
 }
 
@@ -1321,6 +1519,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  groupReader.stop();
   if (instagramJob) instagramJob.cancelled = true;
   if (instagramBrowser) void instagramBrowser.close().catch(() => {});
 });
@@ -1342,6 +1541,7 @@ ipcMain.handle('config:write', async (_event, newConfig) => {
     const previousConfig = loadConfig();
     const normalizedConfig = {
       ...newConfig,
+      whatsappAccountType: normalizeWhatsAppAccountType(newConfig.whatsappAccountType),
       rules: Array.isArray(newConfig.rules) ? newConfig.rules : [],
       defaultMessagesEnabled: newConfig.defaultMessagesEnabled !== false,
       aiContexts: Array.isArray(newConfig.aiContexts)
@@ -1352,10 +1552,13 @@ ipcMain.handle('config:write', async (_event, newConfig) => {
       aiUseConversation: newConfig.aiUseConversation !== false,
       aiVoiceEnabled: newConfig.aiVoiceEnabled === true,
       simulatedTypingEnabled: newConfig.simulatedTypingEnabled !== false,
+      bulkSimulatedTypingEnabled: newConfig.bulkSimulatedTypingEnabled === true,
       elevenLabsApiKey: String(newConfig.elevenLabsApiKey || '').trim(),
       elevenLabsVoiceId: String(newConfig.elevenLabsVoiceId || DEFAULT_CONFIG.elevenLabsVoiceId),
       bulkDelayMinSeconds: Math.max(3, Math.min(600, Number(newConfig.bulkDelayMinSeconds) || DEFAULT_CONFIG.bulkDelayMinSeconds)),
       bulkDelayMaxSeconds: Math.max(3, Math.min(600, Number(newConfig.bulkDelayMaxSeconds) || DEFAULT_CONFIG.bulkDelayMaxSeconds)),
+      bulkPauseEveryMessages: normalizeBulkLongPauseSettings({ pauseEveryMessages: newConfig.bulkPauseEveryMessages }).pauseEveryMessages,
+      bulkLongPauseMinutes: normalizeBulkLongPauseSettings({ longPauseMinutes: newConfig.bulkLongPauseMinutes }).longPauseMinutes,
       bulkContacts: Array.isArray(newConfig.bulkContacts) ? newConfig.bulkContacts : [],
       emailSenderAddress: String(newConfig.emailSenderAddress || '').trim().toLowerCase(),
       emailSenderName: String(newConfig.emailSenderName || '').trim().slice(0, 120),
@@ -1376,7 +1579,8 @@ ipcMain.handle('config:write', async (_event, newConfig) => {
       instagramKeywords: String(newConfig.instagramKeywords || '').trim().slice(0, 5000),
       instagramReplyComment: newConfig.instagramReplyComment !== false,
       instagramSendDirect: newConfig.instagramSendDirect === true,
-      instagramMessage: String(newConfig.instagramMessage || '').slice(0, 5000),
+      instagramCommentMessage: String(newConfig.instagramCommentMessage || newConfig.instagramMessage || '').slice(0, 5000),
+      instagramDirectMessage: String(newConfig.instagramDirectMessage || newConfig.instagramMessage || '').slice(0, 5000),
       instagramMonitorIntervalSeconds: Math.max(15, Math.min(300, Number(newConfig.instagramMonitorIntervalSeconds) || DEFAULT_CONFIG.instagramMonitorIntervalSeconds))
     };
     saveConfig(normalizedConfig);
@@ -1437,6 +1641,10 @@ ipcMain.handle('metrics:get', async () => ({
 // Handler para reconectar WhatsApp
 ipcMain.handle('whatsapp:reconnect', async () => {
   try {
+    if (!directoryHasEntries(localAuthSessionPath())) {
+      showWhatsAppAccountTypeChoice('Escolha o aplicativo para gerar um novo QR Code.');
+      return { ok: true, requiresAccountType: true };
+    }
     console.log('🔄 Tentando reconectar ao WhatsApp...');
     connectionState.retryCount = 0;
 
@@ -1447,12 +1655,27 @@ ipcMain.handle('whatsapp:reconnect', async () => {
 
     // Reinicializar
     console.log('🚀 Reinicializando cliente...');
-    await client.initialize();
+    connectionState.initializing = false;
+    await initializeWhatsAppClient();
     return { ok: true };
   } catch (err) {
     console.error('❌ Erro ao reconectar:', err.message);
     connectionState.lastError = err.message;
     return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('whatsapp:select-account-type', async (_event, accountType) => {
+  if (!['personal', 'business'].includes(accountType)) {
+    return { ok: false, error: 'Escolha WhatsApp ou WhatsApp Business.' };
+  }
+  if (connectionState.connected) {
+    return { ok: false, error: 'Resete a conexão atual antes de conectar outro aplicativo.' };
+  }
+  try {
+    return await initializeWhatsAppClient(accountType);
+  } catch (error) {
+    return { ok: false, error: error.message || String(error) };
   }
 });
 
@@ -1488,6 +1711,7 @@ async function logoutAndClearWhatsAppSession() {
   removeLocalAuthSession();
   connectionState.connected = false;
   connectionState.attempting = false;
+  connectionState.initializing = false;
   conversationByUser.clear();
   messageQueue.clear();
   clearFirstMessageState();
@@ -1532,11 +1756,9 @@ ipcMain.handle('whatsapp:reset', async () => {
     }
 
     await logoutAndClearWhatsAppSession();
-    connectionState.attempting = true;
-
-    await delay(1500);
-    await client.initialize();
-    return { ok: true };
+    await delay(500);
+    showWhatsAppAccountTypeChoice('Sessão removida. Escolha o aplicativo que deseja conectar agora.');
+    return { ok: true, requiresAccountType: true };
   } catch (err) {
     connectionState.attempting = false;
     connectionState.lastError = err.message;
@@ -1893,11 +2115,11 @@ async function scanInstagramPost(job) {
     .slice(0, 100);
   for (const [usernameKey, match] of pending) {
     if (job.cancelled) break;
-    const personalized = applyMessageTags(job.message, { name: match.name || match.username, link: job.postUrl });
     if (job.replyComment && !post.commentedUsers[usernameKey]) {
       try {
+        const personalizedComment = applyMessageTags(job.commentMessage, { name: match.name || match.username, link: job.postUrl });
         sendInstagramLog('info', `Preparando resposta pública para @${match.username}...`, { username: match.username });
-        await replyToInstagramComment(page, match, personalized);
+        await replyToInstagramComment(page, match, personalizedComment);
         post.commentedUsers[usernameKey] = { timestamp: new Date().toISOString() };
         job.commentsSent++;
         recordOutboundMetric(true, 'instagram-comment');
@@ -1917,8 +2139,9 @@ async function scanInstagramPost(job) {
     }
     if (job.sendDirect && !post.directUsers[usernameKey] && !job.cancelled) {
       try {
+        const personalizedDirect = applyMessageTags(job.directMessage, { name: match.name || match.username, link: job.postUrl });
         sendInstagramLog('info', `Abrindo o Direct de @${match.username}...`, { username: match.username });
-        await sendInstagramDirect(page, match.username, personalized, job.postUrl);
+        await sendInstagramDirect(page, match.username, personalizedDirect, job.postUrl);
         post.directUsers[usernameKey] = { timestamp: new Date().toISOString() };
         job.directsSent++;
         recordOutboundMetric(true, 'instagram-direct');
@@ -1981,6 +2204,12 @@ function sendBulkProgress(payload) {
   }
 }
 
+function sendBulkImportProgress(payload) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('bulk:import-progress', payload);
+  }
+}
+
 async function waitForBulkDelay(milliseconds, job) {
   const startedAt = Date.now();
   const end = Date.now() + milliseconds;
@@ -1990,11 +2219,74 @@ async function waitForBulkDelay(milliseconds, job) {
   recordPauseMetric(Date.now() - startedAt);
 }
 
+async function waitForBulkLongPause(milliseconds, job, progress) {
+  const startedAt = Date.now();
+  const end = startedAt + milliseconds;
+  let lastRemainingSeconds = null;
+  while (!job.cancelled && Date.now() < end) {
+    const remainingSeconds = Math.max(1, Math.ceil((end - Date.now()) / 1000));
+    if (remainingSeconds !== lastRemainingSeconds) {
+      lastRemainingSeconds = remainingSeconds;
+      sendBulkProgress({ ...progress, pauseUpdate: true, remainingSeconds });
+    }
+    await delay(Math.min(250, end - Date.now()));
+  }
+  recordPauseMetric(Date.now() - startedAt);
+  if (!job.cancelled) sendBulkProgress({ ...progress, pauseUpdate: true, remainingSeconds: 0 });
+}
+
 function calculateRandomBulkDelaySeconds(minSeconds, maxSeconds, randomValue = Math.random()) {
   return Math.floor(randomValue * (maxSeconds - minSeconds + 1)) + minSeconds;
 }
 
+function emptyBulkSafetyState() {
+  return { locked: false, incident: null };
+}
+
+function loadBulkSafetyState() {
+  if (bulkSafetyRuntimeState) return bulkSafetyRuntimeState;
+  if (!fs.existsSync(bulkSafetyStatePath)) return emptyBulkSafetyState();
+  try {
+    const stored = JSON.parse(fs.readFileSync(bulkSafetyStatePath, 'utf8'));
+    bulkSafetyRuntimeState = {
+      locked: stored?.locked === true,
+      incident: stored?.incident && typeof stored.incident === 'object' ? stored.incident : null
+    };
+    return bulkSafetyRuntimeState;
+  } catch (error) {
+    logRuntimeError('segurança-disparos:leitura', error);
+    return emptyBulkSafetyState();
+  }
+}
+
+function saveBulkSafetyState(state) {
+  bulkSafetyRuntimeState = state;
+  try {
+    fs.mkdirSync(path.dirname(bulkSafetyStatePath), { recursive: true });
+    fs.writeFileSync(bulkSafetyStatePath, JSON.stringify(state, null, 2));
+  } catch (error) {
+    logRuntimeError('segurança-disparos:gravação', error);
+  }
+}
+
+function lockBulkCampaigns(stop, context = {}) {
+  const incident = {
+    type: String(stop?.type || 'unknown'),
+    title: String(stop?.title || 'Disparos interrompidos por segurança'),
+    reason: String(stop?.reason || 'A proteção automática interrompeu a campanha.'),
+    technicalError: String(stop?.technicalError || '').slice(0, 500),
+    occurredAt: new Date().toISOString(),
+    sent: Math.max(0, Number(context.sent) || 0),
+    failed: Math.max(0, Number(context.failed) || 0),
+    attempted: Math.max(0, Number(context.attempted) || 0)
+  };
+  const state = { locked: true, incident };
+  saveBulkSafetyState(state);
+  return incident;
+}
+
 async function resolveSavedWhatsAppContacts() {
+  sendBulkImportProgress({ percent: 2, message: 'Lendo a agenda local do WhatsApp...' });
   const allContacts = await client.getContacts();
   const savedContacts = allContacts.filter(contact => (
     contact?.isMyContact === true &&
@@ -2009,9 +2301,11 @@ async function resolveSavedWhatsAppContacts() {
     .map(contact => String(contact?.id?._serialized || ''))
     .filter(id => id.endsWith('@lid')))];
   const phoneByLid = new Map();
+  sendBulkImportProgress({ percent: 5, message: `${savedContacts.length} contato${savedContacts.length === 1 ? '' : 's'} salvo${savedContacts.length === 1 ? '' : 's'} encontrado${savedContacts.length === 1 ? '' : 's'}.` });
 
-  for (let offset = 0; offset < lidIds.length; offset += 100) {
-    const chunk = lidIds.slice(offset, offset + 100);
+  const lidBatchSize = 25;
+  for (let offset = 0; offset < lidIds.length; offset += lidBatchSize) {
+    const chunk = lidIds.slice(offset, offset + lidBatchSize);
     try {
       const mappings = await client.getContactLidAndPhone(chunk);
       for (const mapping of mappings || []) {
@@ -2022,29 +2316,42 @@ async function resolveSavedWhatsAppContacts() {
     } catch (error) {
       logRuntimeError('importação-contatos-whatsapp:resolver-lid', error);
     }
+    const resolved = Math.min(offset + chunk.length, lidIds.length);
+    const percent = lidIds.length ? 5 + Math.round((resolved / lidIds.length) * 55) : 60;
+    sendBulkImportProgress({ percent, message: `Resolvendo números gradualmente: ${resolved}/${lidIds.length}...` });
+    if (resolved < lidIds.length) await delay(700 + Math.floor(Math.random() * 701));
   }
+  if (!lidIds.length) sendBulkImportProgress({ percent: 60, message: 'Números verificados. Organizando contatos...' });
 
   const contactsByPhone = new Map();
   let unresolved = 0;
 
-  for (const contact of savedContacts) {
-    const serializedId = String(contact?.id?._serialized || '');
-    const phoneSource = serializedId.endsWith('@lid')
-      ? phoneByLid.get(serializedId)
-      : (contact?.number || contact?.id?.user || serializedId);
-    const phone = normalizePhone(phoneSource);
-    if (!phone) {
-      unresolved++;
-      continue;
-    }
+  const contactBatchSize = 50;
+  for (let offset = 0; offset < savedContacts.length; offset += contactBatchSize) {
+    const chunk = savedContacts.slice(offset, offset + contactBatchSize);
+    for (const contact of chunk) {
+      const serializedId = String(contact?.id?._serialized || '');
+      const phoneSource = serializedId.endsWith('@lid')
+        ? phoneByLid.get(serializedId)
+        : (contact?.number || contact?.id?.user || serializedId);
+      const phone = normalizePhone(phoneSource);
+      if (!phone) {
+        unresolved++;
+        continue;
+      }
 
-    const name = [contact.name, contact.shortName, contact.verifiedName, contact.pushname]
-      .map(value => String(value || '').trim())
-      .find(Boolean) || phone;
-    const existing = contactsByPhone.get(phone);
-    if (!existing || (existing.name === existing.phone && name !== phone)) {
-      contactsByPhone.set(phone, { name, phone, source: 'whatsapp' });
+      const name = [contact.name, contact.shortName, contact.verifiedName, contact.pushname]
+        .map(value => String(value || '').trim())
+        .find(Boolean) || phone;
+      const existing = contactsByPhone.get(phone);
+      if (!existing || (existing.name === existing.phone && name !== phone)) {
+        contactsByPhone.set(phone, { name, phone, source: 'whatsapp' });
+      }
     }
+    const organized = Math.min(offset + chunk.length, savedContacts.length);
+    const percent = savedContacts.length ? 60 + Math.round((organized / savedContacts.length) * 40) : 100;
+    sendBulkImportProgress({ percent, message: `Organizando contatos: ${organized}/${savedContacts.length}...` });
+    if (organized < savedContacts.length) await delay(150 + Math.floor(Math.random() * 201));
   }
 
   const resolvedContacts = [...contactsByPhone.values()]
@@ -2125,9 +2432,12 @@ ipcMain.handle('bulk:import-whatsapp-contacts', async () => {
   if (!connectionState.connected) {
     return { ok: false, error: 'Conecte o WhatsApp antes de importar os contatos.' };
   }
+  if (bulkImportRunning) return { ok: false, error: 'A importação de contatos já está em andamento.' };
 
+  bulkImportRunning = true;
   try {
     const result = await resolveSavedWhatsAppContacts();
+    sendBulkImportProgress({ percent: 100, message: 'Importação gradual concluída.' });
     console.log(`👥 Contatos do WhatsApp: ${result.contacts.length} resolvidos de ${result.savedCount} salvos.`);
     return { ok: true, ...result };
   } catch (error) {
@@ -2136,21 +2446,45 @@ ipcMain.handle('bulk:import-whatsapp-contacts', async () => {
       ok: false,
       error: 'Não foi possível ler os contatos salvos do WhatsApp. Aguarde a sincronização e tente novamente.'
     };
+  } finally {
+    bulkImportRunning = false;
   }
+});
+
+ipcMain.handle('bulk:safety-status', async () => ({ ok: true, ...loadBulkSafetyState() }));
+
+ipcMain.handle('bulk:safety-unlock', async () => {
+  if (bulkJob) return { ok: false, error: 'Aguarde o encerramento da campanha antes de liberar novos disparos.' };
+  saveBulkSafetyState(emptyBulkSafetyState());
+  return { ok: true, ...emptyBulkSafetyState() };
 });
 
 ipcMain.handle('bulk:start', async (_event, payload) => {
   if (bulkJob) return { ok: false, error: 'Já existe um envio em andamento.' };
   if (!connectionState.connected) return { ok: false, error: 'Conecte o WhatsApp antes de iniciar o envio.' };
+  const safetyState = loadBulkSafetyState();
+  if (safetyState.locked) {
+    return {
+      ok: false,
+      safetyLocked: true,
+      incident: safetyState.incident,
+      error: 'Novos disparos estão bloqueados pela proteção automática. Revise o alerta e libere manualmente antes de continuar.'
+    };
+  }
 
   const contacts = Array.isArray(payload?.contacts) ? payload.contacts.slice(0, 5000) : [];
-  const message = String(payload?.message || '').trim();
+  const messages = normalizeBulkMessageVariations(payload?.messages, payload?.message);
   const imagePath = payload?.imagePath ? path.resolve(String(payload.imagePath)) : null;
   const legacyDelay = Number(payload?.delaySeconds);
   const delayMinSeconds = Math.max(3, Math.min(600, Number(payload?.delayMinSeconds) || legacyDelay || DEFAULT_CONFIG.bulkDelayMinSeconds));
   const delayMaxSeconds = Math.max(3, Math.min(600, Number(payload?.delayMaxSeconds) || legacyDelay || DEFAULT_CONFIG.bulkDelayMaxSeconds));
+  const longPauseSettings = normalizeBulkLongPauseSettings({
+    pauseEveryMessages: payload?.pauseEveryMessages,
+    longPauseMinutes: payload?.longPauseMinutes
+  });
+  const simulatedTyping = payload?.simulatedTyping === true;
   if (!contacts.length) return { ok: false, error: 'Selecione pelo menos um contato.' };
-  if (!message && !imagePath) return { ok: false, error: 'Informe uma mensagem ou selecione uma imagem.' };
+  if (!messages.length && !imagePath) return { ok: false, error: 'Informe ao menos uma variação de mensagem ou selecione uma imagem.' };
   if (imagePath && !fs.existsSync(imagePath)) return { ok: false, error: 'A imagem selecionada não existe mais.' };
   if (delayMinSeconds > delayMaxSeconds) return { ok: false, error: 'O intervalo inicial não pode ser maior que o intervalo final.' };
 
@@ -2158,33 +2492,79 @@ ipcMain.handle('bulk:start', async (_event, payload) => {
   bulkJob = job;
   let sent = 0;
   let failed = 0;
+  let consecutiveFailures = 0;
+  let sentSinceLongPause = 0;
+  const recentOutcomes = [];
+  let safetyStop = null;
 
   try {
     const media = imagePath ? MessageMedia.fromFilePath(imagePath) : null;
     for (let index = 0; index < contacts.length && !job.cancelled; index++) {
       const contact = contacts[index] || {};
+      if (!connectionState.connected) {
+        const stop = {
+          type: 'connection',
+          title: 'Conexão com o WhatsApp interrompida',
+          reason: 'O WhatsApp foi desconectado durante a campanha. A automação foi parada para evitar novas tentativas em uma sessão indisponível.',
+          technicalError: 'Estado da conexão: desconectado'
+        };
+        safetyStop = lockBulkCampaigns(stop, { sent, failed, attempted: index });
+        sendBulkProgress({
+          current: index,
+          total: contacts.length,
+          sent,
+          failed,
+          contact: { name: '', phone: '' },
+          error: null,
+          nextDelaySeconds: null,
+          safetyStop
+        });
+        break;
+      }
       const phone = normalizePhone(contact.phone);
-      const personalizedMessage = applyMessageTags(message, contact);
+      const selectedMessage = selectBulkMessageVariation(messages, index);
+      const personalizedMessage = applyMessageTags(selectedMessage, contact);
       let error = null;
+      let classification = null;
       try {
         if (!phone) throw new Error('Número inválido');
         const numberId = await client.getNumberId(phone);
         if (!numberId) throw new Error('Número não registrado no WhatsApp');
+        if (simulatedTyping) await simulateWhatsAppTyping(numberId._serialized, personalizedMessage || 'Imagem');
         if (media) {
           await client.sendMessage(numberId._serialized, media, personalizedMessage ? { caption: personalizedMessage } : undefined);
         } else {
           await client.sendMessage(numberId._serialized, personalizedMessage);
         }
         sent++;
+        sentSinceLongPause++;
+        consecutiveFailures = 0;
+        recentOutcomes.push(true);
         recordOutboundMetric(true, 'bulk');
       } catch (err) {
         failed++;
         error = err.message || String(err);
+        consecutiveFailures++;
+        recentOutcomes.push(false);
+        classification = classifyBulkSendError(err);
         recordOutboundMetric(false, 'bulk');
       }
+      if (recentOutcomes.length > 10) recentOutcomes.shift();
 
-      const hasNextContact = index < contacts.length - 1 && !job.cancelled;
-      const nextDelaySeconds = hasNextContact
+      const breakerDecision = error
+        ? evaluateBulkCircuitBreaker({ classification, consecutiveFailures, recentOutcomes })
+        : null;
+      if (breakerDecision) {
+        safetyStop = lockBulkCampaigns(breakerDecision, {
+          sent,
+          failed,
+          attempted: index + 1
+        });
+      }
+
+      const hasNextContact = index < contacts.length - 1 && !job.cancelled && !safetyStop;
+      const longPauseDue = shouldTakeBulkLongPause(sentSinceLongPause, hasNextContact, longPauseSettings);
+      const nextDelaySeconds = hasNextContact && !longPauseDue
         ? calculateRandomBulkDelaySeconds(delayMinSeconds, delayMaxSeconds)
         : null;
       sendBulkProgress({
@@ -2194,12 +2574,26 @@ ipcMain.handle('bulk:start', async (_event, payload) => {
         failed,
         contact: { name: String(contact.name || ''), phone: String(contact.phone || '') },
         error,
-        nextDelaySeconds
+        nextDelaySeconds,
+        longPauseMinutes: longPauseDue ? longPauseSettings.longPauseMinutes : null,
+        safetyStop
       });
-      if (nextDelaySeconds !== null) await waitForBulkDelay(nextDelaySeconds * 1000, job);
+      if (safetyStop) break;
+      if (longPauseDue) {
+        await waitForBulkLongPause(longPauseSettings.longPauseMinutes * 60 * 1000, job, {
+          current: index + 1,
+          total: contacts.length,
+          sent,
+          failed,
+          longPauseMinutes: longPauseSettings.longPauseMinutes
+        });
+        sentSinceLongPause = 0;
+      } else if (nextDelaySeconds !== null) {
+        await waitForBulkDelay(nextDelaySeconds * 1000, job);
+      }
     }
 
-    return { ok: true, cancelled: job.cancelled, sent, failed, total: contacts.length };
+    return { ok: true, cancelled: job.cancelled, sent, failed, total: contacts.length, safetyStop };
   } finally {
     bulkJob = null;
   }
@@ -2530,8 +2924,11 @@ ipcMain.handle('instagram:start', async (_event, payload) => {
   const replyComment = payload?.replyComment === true;
   const sendDirect = payload?.sendDirect === true;
   if (!replyComment && !sendDirect) return { ok: false, error: 'Ative a resposta no comentário, o envio por Direct ou as duas opções.' };
-  const message = String(payload?.message || '').trim().slice(0, 5000);
-  if (!message) return { ok: false, error: 'Digite a mensagem que será enviada.' };
+  const legacyMessage = String(payload?.message || '');
+  const commentMessage = String(payload?.commentMessage || legacyMessage).trim().slice(0, 5000);
+  const directMessage = String(payload?.directMessage || legacyMessage).trim().slice(0, 5000);
+  if (replyComment && !commentMessage) return { ok: false, error: 'Digite a resposta pública que será enviada no comentário.' };
+  if (sendDirect && !directMessage) return { ok: false, error: 'Digite a mensagem que será enviada por Direct.' };
   const intervalSeconds = Math.max(15, Math.min(300, Number(payload?.intervalSeconds) || DEFAULT_CONFIG.instagramMonitorIntervalSeconds));
   const monitorStartedAt = new Date().toISOString();
 
@@ -2552,7 +2949,9 @@ ipcMain.handle('instagram:start', async (_event, payload) => {
     config.instagramKeywords = keywordList.map(keyword => keyword).join('\n');
     config.instagramReplyComment = replyComment;
     config.instagramSendDirect = sendDirect;
-    config.instagramMessage = message;
+    config.instagramCommentMessage = commentMessage;
+    config.instagramDirectMessage = directMessage;
+    delete config.instagramMessage;
     config.instagramMonitorIntervalSeconds = intervalSeconds;
     saveConfig(config);
 
@@ -2563,7 +2962,8 @@ ipcMain.handle('instagram:start', async (_event, payload) => {
       keywords: keywordList,
       replyComment,
       sendDirect,
-      message,
+      commentMessage,
+      directMessage,
       intervalSeconds,
       scanned: 0,
       matches: 0,

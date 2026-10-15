@@ -21,28 +21,29 @@
 
       <nav class="nav-menu">
         <button class="nav-item active" data-section="status">
-          <span class="icon">📊</span> Status
+          <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span> Status
         </button>
         <button class="nav-item" data-section="messages">
-          <span class="icon">💬</span> Respostas
+          <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-1 1V11.5A8.5 8.5 0 0 1 11.5 3h1a8.5 8.5 0 0 1 8.5 8.5Z"/><path d="M7 9h10M7 13h7"/></svg></span> Respostas
         </button>
+        <button class="nav-item" data-section="groups"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3M16 5a3 3 0 0 1 0 6M21 21v-3a6 6 0 0 0-4-5.65"/></svg></span> Monitoramento de Grupos</button>
         <button class="nav-item" data-section="bulk">
-          <span class="icon">📣</span> Disparos
+          <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 15-6v16L3 14v-4ZM7 16l2 5h3l-2-4M21 9v6"/></svg></span> Disparos
         </button>
         <button class="nav-item" data-section="email">
-          <span class="icon">✉️</span> Disparo de Email
+          <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 6 9 7 9-7"/></svg></span> Disparo de Email
         </button>
         <button class="nav-item" data-section="instagram">
-          <span class="icon">📷</span> Bot Instagram
+          <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><path d="M17.5 6.5h.01"/></svg></span> Bot Instagram
         </button>
         <button class="nav-item" data-section="ai">
-          <span class="icon">🤖</span> IA & Voz
+          <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="7" width="16" height="13" rx="3"/><path d="M12 3v4M8 12h.01M16 12h.01M8 16h8M1 11v5M23 11v5"/></svg></span> IA & Voz
         </button>
         <button class="nav-item" data-section="metrics">
-          <span class="icon">📈</span> Métricas
+          <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18M7 16v-5M12 16V7M17 16v-8"/></svg></span> Métricas
         </button>
         <button class="nav-item" data-section="help">
-          <span class="icon">❔</span> Ajuda
+          <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2-3 4M12 17h.01"/></svg></span> Ajuda
         </button>
       </nav>
 
@@ -79,6 +80,38 @@
         </div>
       </header>
 
+      <section id="groups-section" class="section">
+        <div class="groups-heading"><div class="section-header"><span class="section-eyebrow">Automação por grupo</span><h2>Monitoramento de Grupos</h2><p>Selecione um grupo para configurar os comandos e acompanhar o atendimento.</p></div><div class="groups-form-actions"><button id="groups-change" class="btn btn-secondary" type="button" hidden>Trocar grupo</button><button id="groups-refresh" class="btn btn-secondary" type="button">Atualizar grupos</button></div></div>
+        <p id="groups-status" class="groups-connection" role="status">Conecte o WhatsApp para carregar os grupos.</p>
+        <p id="groups-feedback" role="status" aria-live="polite"></p>
+        <div class="groups-layout">
+          <div class="card groups-browser"><span class="section-eyebrow">1. Escolha o grupo</span><h3>Grupos disponíveis</h3><label for="groups-search">Pesquisar grupos</label><input id="groups-search" type="search" placeholder="Digite o nome do grupo" autocomplete="off"><p id="groups-count" aria-live="polite"></p><div id="groups-list"></div></div>
+          <div class="card groups-editor" hidden><span class="section-eyebrow">Grupo selecionado</span><h3 id="groups-selected">Selecione um grupo</h3>
+            <p id="groups-empty" class="groups-empty">Clique em <strong>Configurar</strong> em um grupo da lista. Ao marcar <strong>Monitorar</strong>, a configuração também será aberta aqui.</p>
+            <div id="groups-selected-controls" hidden><label class="groups-monitor-control"><input id="groups-selected-enabled" type="checkbox"> Monitoramento deste grupo</label><span id="groups-selected-status" class="group-badge"></span><p id="groups-selected-help"></p><p id="groups-reader-status" role="status" aria-live="polite"></p><p class="groups-test-help">Para testar, envie o comando completo por outra conta participante do grupo. Mensagens da própria conta conectada são ignoradas para evitar loops.</p></div>
+            <div id="groups-live" class="groups-live" hidden>
+              <div class="groups-command-heading"><h3>Monitoramento em tempo real</h3><span id="groups-live-state" class="group-badge">Preparando</span></div>
+              <div class="groups-live-metrics"><div><span>Mensagens observadas</span><strong id="groups-live-received">0</strong></div><div><span>Respostas enviadas</span><strong id="groups-live-sent">0</strong></div><div><span>Erros de envio</span><strong id="groups-live-errors">0</strong></div></div>
+              <p class="groups-live-note">Contadores desta sessão do aplicativo. Atualização automática a cada 2 segundos.</p>
+              <p id="groups-live-error" role="alert" hidden></p>
+              <h4>Atividade recente</h4><ol id="groups-live-activity" aria-label="Atividade recente do grupo"></ol>
+            </div>
+            <div class="groups-configuration">
+            <form id="groups-form" hidden>
+              <label class="groups-typing-control"><input id="groups-simulated-typing" type="checkbox" checked> Simular digitação antes de responder</label>
+              <small>Aparece “digitando...” no grupo antes do envio. A preferência é salva para este grupo.</small>
+              <h4 id="groups-form-title">Novo comando</h4>
+              <label for="group-trigger">Palavra-chave / comando de ativação</label><input id="group-trigger" placeholder="Ex.: !ajuda" required pattern="![^\s!]+" aria-describedby="group-trigger-help">
+              <small id="group-trigger-help">Comece com ! e não use espaços. A mensagem inteira deve corresponder ao comando.</small>
+              <label for="group-response">Mensagem de resposta</label><textarea id="group-response" rows="5" required placeholder="Escreva a resposta que será enviada no grupo. Aceita várias linhas, emojis e links."></textarea>
+              <label><input id="group-command-enabled" type="checkbox" checked> Comando ativo</label>
+              <div class="groups-form-actions"><button id="groups-save" class="btn btn-primary" type="submit">Salvar comando</button> <button id="groups-cancel-edit" class="btn btn-secondary" type="button">Limpar edição</button></div>
+            </form>
+            <div id="groups-command-area" hidden><div class="groups-command-heading"><h3>Comandos cadastrados</h3><span id="groups-command-count" class="group-badge"></span></div><div id="groups-commands"></div></div>
+            </div>
+          </div>
+        </div>
+      </section>
       <!-- Status Section -->
       <section id="status-section" class="section active">
         <div class="status-container">
@@ -101,6 +134,23 @@
             <div id="errorArea" class="error-message" style="display:none;">
               <span class="error-icon">⚠️</span>
               <span id="errorText"></span>
+            </div>
+
+            <div id="whatsappAccountTypeArea" class="whatsapp-account-type" style="display:none;">
+              <span class="section-eyebrow">Escolha o aplicativo</span>
+              <h3>Qual WhatsApp você deseja conectar?</h3>
+              <p>O TurboWhats funciona com os dois aplicativos. Escolha onde está a conta que lerá o QR Code.</p>
+              <div class="whatsapp-account-options">
+                <button type="button" class="whatsapp-account-option" data-whatsapp-account-type="personal">
+                  <span class="whatsapp-account-option-icon">💬</span>
+                  <span><strong>WhatsApp</strong><small>Aplicativo pessoal/normal</small></span>
+                </button>
+                <button type="button" class="whatsapp-account-option business" data-whatsapp-account-type="business">
+                  <span class="whatsapp-account-option-icon">🏢</span>
+                  <span><strong>WhatsApp Business</strong><small>Aplicativo para empresas</small></span>
+                </button>
+              </div>
+              <p class="whatsapp-account-note">Depois da escolha, abra <strong>Aparelhos conectados → Conectar aparelho</strong> no aplicativo selecionado.</p>
             </div>
 
             <div id="loadingBarArea" class="loading-container" style="display:none;">
@@ -146,11 +196,11 @@
             <div id="qrcodeContainer" class="qrcode-box" style="display:none;">
               <div class="qrcode-brand">
                 <img src="assets/turbowhats-icon.png" alt="TurboWhats">
-                <div><strong>Conecte o TurboWhats</strong><span>Escaneie o QR Code pelo seu celular</span></div>
+                <div><strong>Conecte o TurboWhats</strong><span id="qrcodeAccountLabel">Escaneie o QR Code pelo seu celular</span></div>
               </div>
               <div id="qrcodeImg" class="qrcode"></div>
               <div class="qrcode-info">
-                <p><strong>WhatsApp → Aparelhos conectados → Conectar aparelho</strong></p>
+                <p><strong><span id="qrcodeAppName">WhatsApp</span> → Aparelhos conectados → Conectar aparelho</strong></p>
                 <p class="small">Depois da leitura, mantenha esta tela aberta enquanto o TurboWhats autentica e sincroniza suas conversas.</p>
               </div>
             </div>
@@ -163,6 +213,7 @@
               <span class="connected-eyebrow">TurboWhats online</span>
               <h3>Conexão concluída!</h3>
               <p>Seu atendimento está pronto para acompanhar mensagens não lidas.</p>
+              <p id="connectedAccountType" class="connected-account-type"></p>
               <div class="stats">
                 <div class="stat-item">
                   <span class="stat-label">Status</span>
@@ -274,9 +325,13 @@
             </div>
             <div class="bulk-import-note">
               <span>💡</span>
-              <p>O TurboWhats importa os contatos salvos que aparecem em <strong>Nova conversa</strong>. Grupos e números duplicados são ignorados.</p>
+              <p>O TurboWhats importa gradualmente os contatos salvos que aparecem em <strong>Nova conversa (Seus contatos salvos)</strong>, com pequenas pausas entre os lotes. A importação apenas lê a agenda; grupos e números duplicados são ignorados.</p>
             </div>
             <div id="bulkImportFeedback" class="bulk-import-feedback" role="status" aria-live="polite"></div>
+            <div id="bulkImportProgressArea" class="bulk-import-progress" style="display:none;" aria-live="polite">
+              <div><span id="bulkImportProgressText">Preparando importação...</span><strong id="bulkImportProgressPercent">0%</strong></div>
+              <div class="bulk-import-progress-track"><div id="bulkImportProgressBar"></div></div>
+            </div>
             <form id="bulkContactForm" class="form-grid bulk-contact-form">
               <input type="hidden" id="bulkContactId">
               <div class="form-group bulk-contact-name">
@@ -350,8 +405,20 @@
             <h3 class="card-title">📨 Nova campanha</h3>
             <div class="form-stack">
               <div class="form-group">
-                <label for="bulkMessage">Mensagem</label>
-                <textarea id="bulkMessage" placeholder="Digite a mensagem que será enviada..."></textarea>
+                <label for="bulkMessage">Variações da mensagem</label>
+                <div id="bulkMessageVariations" class="bulk-message-variations">
+                  <div class="bulk-message-variation">
+                    <div class="bulk-message-variation-header">
+                      <strong>Variação 1</strong>
+                    </div>
+                    <textarea id="bulkMessage" class="bulk-message-variation-text" placeholder="Digite a primeira variação da mensagem..."></textarea>
+                  </div>
+                </div>
+                <div class="bulk-variation-actions">
+                  <button type="button" id="bulkAddVariation" class="btn btn-secondary btn-small">Adicionar variação</button>
+                  <small id="bulkVariationCount">1 de 5 variações</small>
+                </div>
+                <small>As variações são alternadas em sequência entre os contatos selecionados.</small>
                 <div class="tag-toolbar" aria-label="Inserir tag na mensagem">
                   <span>Inserir tag:</span>
                   <button type="button" class="tag-chip" data-tag="{Nome}">{Nome}</button>
@@ -361,7 +428,7 @@
                   <button type="button" class="tag-chip" data-tag="{Hora}">{Hora}</button>
                 </div>
                 <div class="message-preview">
-                  <span>Prévia:</span>
+                  <span id="bulkMessagePreviewLabel">Prévia da variação 1:</span>
                   <p id="bulkMessagePreview">Digite uma mensagem para visualizar a personalização.</p>
                 </div>
               </div>
@@ -388,11 +455,43 @@
                 </div>
                 <small>Uma nova espera é sorteada dentro desse intervalo antes de cada próximo envio.</small>
               </div>
+              <div class="form-group bulk-long-pause-card">
+                <label>Pausas longas programadas</label>
+                <div class="bulk-long-pause-settings">
+                  <label for="bulkPauseEveryMessages">
+                    <span>Pausar após</span>
+                    <input type="number" id="bulkPauseEveryMessages" min="10" max="500" value="50">
+                    <small>mensagens enviadas</small>
+                  </label>
+                  <label for="bulkLongPauseMinutes">
+                    <span>Durante</span>
+                    <input type="number" id="bulkLongPauseMinutes" min="1" max="120" value="15">
+                    <small>minutos</small>
+                  </label>
+                </div>
+                <small>A campanha exibirá uma contagem regressiva e poderá ser cancelada durante a pausa. Pausas não garantem proteção contra bloqueios.</small>
+              </div>
+              <label class="checkbox-label bulk-typing-option">
+                <input type="checkbox" id="bulkSimulatedTypingEnabled">
+                <span class="checkbox-custom"></span>
+                <span class="bulk-typing-copy">
+                  <strong>Digitação simulada nos disparos</strong>
+                  <small>Exibe “digitando...” por alguns segundos antes de cada mensagem ou imagem da campanha.</small>
+                </span>
+              </label>
               <label class="checkbox-label">
                 <input type="checkbox" id="bulkConsent">
                 <span class="checkbox-custom"></span>
                 Confirmo que os contatos selecionados autorizaram estas mensagens
               </label>
+              <div id="bulkSafetyAlert" class="bulk-safety-alert" role="alert" style="display:none;">
+                <div>
+                  <strong id="bulkSafetyTitle">Disparos bloqueados por segurança</strong>
+                  <p id="bulkSafetyReason"></p>
+                  <small id="bulkSafetyDetails"></small>
+                </div>
+                <button type="button" id="bulkSafetyUnlock" class="btn btn-danger btn-small">Revisar e liberar</button>
+              </div>
               <div class="bulk-actions">
                 <button type="button" id="bulkStart" class="btn btn-primary">Iniciar envio</button>
                 <button type="button" id="bulkCancel" class="btn btn-danger" style="display:none;">Cancelar</button>
@@ -593,20 +692,42 @@
                   Enviar mensagem por Direct (DM)
                 </label>
               </div>
-              <div class="form-group">
-                <label for="instagramMessage">Mensagem de resposta</label>
-                <textarea id="instagramMessage" rows="8" maxlength="5000" placeholder="Olá {Nome}!&#10;&#10;Obrigado pelo comentário. Veja: {Link}" required></textarea>
-              </div>
-              <div class="tag-toolbar instagram-tag-toolbar">
-                <span class="instagram-tag-toolbar-title">Atalhos de personalização</span>
-                <div class="instagram-tag-list">
-                  <button type="button" class="instagram-tag-chip" data-tag="{Nome}">{Nome}</button>
-                  <button type="button" class="instagram-tag-chip" data-tag="{PrimeiroNome}">{PrimeiroNome}</button>
-                  <button type="button" class="instagram-tag-chip" data-tag="{Link}">{Link}</button>
-                  <button type="button" class="instagram-tag-chip" data-tag="{Data}">{Data}</button>
-                  <button type="button" class="instagram-tag-chip" data-tag="{Hora}">{Hora}</button>
+              <div class="instagram-message-fields">
+                <div id="instagramCommentMessageField" class="instagram-message-field">
+                  <div class="form-group">
+                    <label for="instagramCommentMessage">Resposta pública no comentário</label>
+                    <textarea id="instagramCommentMessage" rows="6" maxlength="5000" placeholder="Olá {Nome}! Obrigado pelo comentário."></textarea>
+                    <small>Este texto será publicado como resposta ao comentário que ativou uma palavra-chave.</small>
+                  </div>
+                  <div class="tag-toolbar instagram-tag-toolbar">
+                    <span class="instagram-tag-toolbar-title">Atalhos da resposta pública</span>
+                    <div class="instagram-tag-list">
+                      <button type="button" class="instagram-tag-chip" data-target="instagramCommentMessage" data-tag="{Nome}">{Nome}</button>
+                      <button type="button" class="instagram-tag-chip" data-target="instagramCommentMessage" data-tag="{PrimeiroNome}">{PrimeiroNome}</button>
+                      <button type="button" class="instagram-tag-chip" data-target="instagramCommentMessage" data-tag="{Link}">{Link}</button>
+                      <button type="button" class="instagram-tag-chip" data-target="instagramCommentMessage" data-tag="{Data}">{Data}</button>
+                      <button type="button" class="instagram-tag-chip" data-target="instagramCommentMessage" data-tag="{Hora}">{Hora}</button>
+                    </div>
+                  </div>
                 </div>
-                <small>Clique em uma tag para inseri-la na posição do cursor da mensagem.</small>
+
+                <div id="instagramDirectMessageField" class="instagram-message-field" hidden>
+                  <div class="form-group">
+                    <label for="instagramDirectMessage">Mensagem enviada por Direct</label>
+                    <textarea id="instagramDirectMessage" rows="6" maxlength="5000" placeholder="Olá {Nome}! Conforme você pediu, veja os detalhes aqui: {Link}"></textarea>
+                    <small>Este texto será enviado em uma conversa privada pelo Direct.</small>
+                  </div>
+                  <div class="tag-toolbar instagram-tag-toolbar">
+                    <span class="instagram-tag-toolbar-title">Atalhos da mensagem privada</span>
+                    <div class="instagram-tag-list">
+                      <button type="button" class="instagram-tag-chip" data-target="instagramDirectMessage" data-tag="{Nome}">{Nome}</button>
+                      <button type="button" class="instagram-tag-chip" data-target="instagramDirectMessage" data-tag="{PrimeiroNome}">{PrimeiroNome}</button>
+                      <button type="button" class="instagram-tag-chip" data-target="instagramDirectMessage" data-tag="{Link}">{Link}</button>
+                      <button type="button" class="instagram-tag-chip" data-target="instagramDirectMessage" data-tag="{Data}">{Data}</button>
+                      <button type="button" class="instagram-tag-chip" data-target="instagramDirectMessage" data-tag="{Hora}">{Hora}</button>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div class="form-group instagram-interval-field">
                 <label for="instagramMonitorInterval">Verificar novos comentários a cada</label>
@@ -815,7 +936,7 @@
             <h3>3. Contatos e disparos</h3>
             <p>Em <strong>Disparos</strong>, escolha o país e informe o DDD e o número em campos separados. Exemplo: <strong>Brasil (+55)</strong>, DDD <strong>21</strong> e número <strong>981682922</strong>. Confira a prévia antes de salvar.</p>
             <p>Também é possível importar um arquivo XLSX/CSV com uma coluna <strong>Nome</strong> e outra chamada <strong>WhatsApp</strong>, <strong>Telefone</strong>, <strong>Celular</strong> ou <strong>Número</strong>. Na importação, mantenha o código do país no telefone.</p>
-            <p>Selecione os destinatários, escreva a mensagem, anexe uma imagem se desejar e defina um intervalo mínimo e máximo. Antes de cada próximo envio, o TurboWhats sorteia uma espera diferente dentro desses limites.</p>
+            <p>Selecione os destinatários, escreva até cinco variações da mensagem, anexe uma imagem se desejar e defina um intervalo mínimo e máximo. Os textos são alternados em sequência entre os contatos e, antes de cada próximo envio, o TurboWhats sorteia uma espera diferente dentro desses limites.</p>
           </article>
 
           <article class="card help-card help-tags">
@@ -867,7 +988,7 @@
               <li>Abra a aba <strong>Bot Instagram</strong>, clique em <strong>Abrir Instagram para login</strong> e acesse sua conta na janela aberta.</li>
               <li>Volte ao TurboWhats, clique em <strong>Verificar sessão</strong> e cole o link da única publicação que será monitorada.</li>
               <li>Cadastre palavras-chave por vírgula ou linha. O sistema ignora diferenças de letras maiúsculas e acentos.</li>
-              <li>Escolha resposta pública, Direct ou os dois, escreva a mensagem com tags e inicie o bot.</li>
+              <li>Escolha resposta pública, Direct ou os dois e escreva uma mensagem diferente para cada canal ativado.</li>
             </ol>
             <p>A primeira leitura registra os comentários que já existiam sem respondê-los. Depois disso, somente comentários novos são avaliados. Cada ação concluída fica registrada por usuário e publicação para impedir respostas duplicadas.</p>
             <p class="help-ai-note"><strong>Importante:</strong> a janela aparece somente durante o login; depois que o bot inicia, o Instagram funciona oculto em segundo plano. Envie somente mensagens esperadas pelos usuários. Como a automação usa o Instagram Web, alterações feitas pelo Instagram na página podem exigir uma atualização do TurboWhats.</p>
@@ -1073,5 +1194,6 @@
   </dialog>
 
   <script src="renderer.js"></script>
+  <script src="groups-renderer.js"></script>
 </body>
 </html>
