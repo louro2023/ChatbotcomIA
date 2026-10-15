@@ -31,7 +31,7 @@ assert.equal(installWhatsAppMessageKeyCompatibility().patchedPrototypes, 0);
 assert.equal(utils.getMessageModel, wrapped);
 (async () => {
  const order = [];
- class MockClient { constructor() { this.pupPage = { evaluate: async fn => { assert.equal(fn, installWhatsAppMessageKeyCompatibility); order.push('compatibility'); } }; } async attachEventListeners() { order.push('listeners'); } }
+ class MockClient { constructor() { this.pupPage = { evaluate: async fn => { if (fn === installWhatsAppMessageKeyCompatibility) order.push('compatibility'); return false; } }; } async attachEventListeners() { order.push('listeners'); } }
  await new (withWhatsAppCompatibility(MockClient))().attachEventListeners();
  assert.deepEqual(order, ['compatibility', 'listeners']);
  let state = {}, sends = 0;

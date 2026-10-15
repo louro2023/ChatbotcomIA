@@ -173,9 +173,10 @@
       const summary = !status.connected ? 'Leitura indisponível: WhatsApp desconectado.'
         : !settings[groupId]?.enabled ? 'Monitoramento inativo para este grupo.'
         : status.error ? `Falha na leitura: ${status.error}`
+        : status.syncing ? 'WhatsApp sincronizando mensagens; sessão preservada.'
         : status.running && scanTime ? `Leitura contínua ativa · última verificação ${scanTime}` : 'Preparando leitura das mensagens...';
       el('groups-reader-status').textContent = `${summary} · ${item.received || 0} mensagem(ns) observada(s) · ${item.sent || 0} resposta(s). ${decisions[item.lastDecision] || ''}`;
-      el('groups-live-state').textContent = !status.connected ? 'Desconectado' : !settings[groupId]?.enabled ? 'Inativo' : status.error ? 'Erro na leitura' : status.running && scanTime ? 'Leitura ativa' : 'Preparando';
+      el('groups-live-state').textContent = !status.connected ? 'Desconectado' : !settings[groupId]?.enabled ? 'Inativo' : status.error ? 'Erro na leitura' : status.syncing ? 'Sincronizando' : status.running && scanTime ? 'Leitura ativa' : 'Preparando';
       el('groups-live-state').className = `group-badge${status.connected && settings[groupId]?.enabled && status.running && !status.error ? ' active' : ''}`;
       el('groups-live-received').textContent = String(item.received || 0);
       el('groups-live-sent').textContent = String(item.sent || 0);

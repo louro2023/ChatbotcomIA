@@ -231,6 +231,11 @@ const groupMonitor = createGroupMonitor({
 const groupReader = createGroupReader({
   snapshot: async () => {
     const compatibility = await client.pupPage.evaluate(installWhatsAppMessageKeyCompatibility);
+    if (!compatibility.ready) {
+      const error = new Error('O WhatsApp Web está sincronizando a página; a sessão será preservada.');
+      error.code = 'WA_WEB_SYNCING';
+      throw error;
+    }
     if (compatibility.patchedPrototypes) logMessageTracker('grupos:compatibilidade', 'Identificadores $1 normalizados para _serialized');
     return client.pupPage.evaluate(readGroupMessagesFromPage);
   },
@@ -938,6 +943,7 @@ client.on('qr', qr => {
 });
 
 client.on('loading_screen', (percent, message) => {
+  if (connectionState.connected) return;
   console.log(`⏳ Carregando... ${percent}% - ${message}`);
 
   const loadingMessage = String(message || '');
@@ -962,6 +968,8 @@ client.on('loading_screen', (percent, message) => {
 });
 
 client.on('authenticated', () => {
+  logMessageTracker('conexao:autenticada', connectionState.connected ? 'sessão existente preservada' : 'autenticação inicial');
+  if (connectionState.connected) return;
   console.log('✅ Autenticação bem-sucedida!');
   connectionState.attempting = false;
   connectionState.retryCount = 0;
@@ -979,40 +987,29 @@ client.on('authenticated', () => {
 
 client.on('auth_failure', msg => {
   stopUnreadScanner();
+  connectionState.connected = false;
   connectionState.lastError = msg;
   connectionState.attempting = false;
   connectionState.initializing = false;
   console.error('❌ Falha na autenticação:', msg);
 
   const errorMsg = typeof msg === 'object' ? JSON.stringify(msg) : String(msg);
+  logMessageTracker('conexao:falha-autenticacao', errorMsg);
 
   if (mainWindow) {
     mainWindow.webContents.send('wa-status', {
       connected: false,
-      error: 'Falha na autenticação - Gerando novo QR Code...',
+      error: 'O WhatsApp recusou a autenticação. Reconecte para verificar a sessão.',
       details: errorMsg
     });
   }
 
-  // Tentar reconectar automaticamente
-  setTimeout(() => {
-    if (connectionState.retryCount < connectionState.maxRetries) {
-      connectionState.retryCount++;
-      console.log(`🔄 Tentativa de reconexão ${connectionState.retryCount}/${connectionState.maxRetries}`);
-      attemptReconnect();
-    } else {
-      console.error('❌ Máximo de tentativas de reconexão atingido');
-      if (mainWindow) {
-        mainWindow.webContents.send('wa-status', {
-          connected: false,
-          error: 'Máximo de tentativas atingido. Clique em "Reconectar" para tentar novamente.'
-        });
-      }
-    }
-  }, 3000);
+  // Do not destroy a recovered session from a delayed authentication retry.
 });
 
 client.on('ready', () => {
+  logMessageTracker('conexao:pronta', connectionState.connected ? 'evento repetido; leitores e contadores preservados' : 'leitores iniciados');
+  if (connectionState.connected) return;
   const accountType = normalizeWhatsAppAccountType(loadConfig().whatsappAccountType);
   connectionState.connected = true;
   connectionState.attempting = false;
@@ -1038,6 +1035,7 @@ client.on('ready', () => {
 });
 
 client.on('disconnected', (reason) => {
+  logMessageTracker('conexao:desconectada', String(reason));
   stopUnreadScanner();
   connectionState.connected = false;
   connectionState.initializing = false;
@@ -1066,24 +1064,7 @@ client.on('disconnected', (reason) => {
   // LocalAuth gerencia a remoção dos arquivos quando o logout é solicitado.
 });
 
-// ===== FUNÇÃO DE RECONEXÃO COM RETRY =====
-async function attemptReconnect() {
-  try {
-    stopUnreadScanner();
-    console.log('🔄 Iniciando reconexão...');
-    await client.destroy().catch(() => {});
-    await delay(1000);
-    await client.initialize();
-  } catch (err) {
-    console.error('❌ Erro na reconexão:', err.message);
-    connectionState.lastError = err.message;
-    if (connectionState.retryCount < connectionState.maxRetries) {
-      connectionState.retryCount++;
-      console.log(`⏳ Aguardando 5s antes da tentativa ${connectionState.retryCount}/${connectionState.maxRetries}`);
-      setTimeout(attemptReconnect, 5000);
-    }
-  }
-}
+client.on('change_state', state => logMessageTracker('conexao:estado', String(state)));
 
 function normalizeWhatsAppAccountType(value) {
   return value === 'business' ? 'business' : 'personal';
@@ -1638,9 +1619,17 @@ ipcMain.handle('metrics:get', async () => ({
   ...calculateMetricsSnapshot()
 }));
 
+const sessionRecovery = require('./session-recovery').createSessionRecovery({
+  state: connectionState,
+  stop: stopUnreadScanner,
+  destroy: () => client.destroy().catch(() => {}),
+  initialize: () => initializeWhatsAppClient()
+});
+
 // Handler para reconectar WhatsApp
 ipcMain.handle('whatsapp:reconnect', async () => {
   try {
+    if (connectionState.connected) return { ok: true, alreadyConnected: true };
     if (!directoryHasEntries(localAuthSessionPath())) {
       showWhatsAppAccountTypeChoice('Escolha o aplicativo para gerar um novo QR Code.');
       return { ok: true, requiresAccountType: true };
@@ -1648,16 +1637,7 @@ ipcMain.handle('whatsapp:reconnect', async () => {
     console.log('🔄 Tentando reconectar ao WhatsApp...');
     connectionState.retryCount = 0;
 
-    await client.destroy().catch(() => {});
-
-    // Aguardar um pouco antes de reinicializar
-    await new Promise(r => setTimeout(r, 2000));
-
-    // Reinicializar
-    console.log('🚀 Reinicializando cliente...');
-    connectionState.initializing = false;
-    await initializeWhatsAppClient();
-    return { ok: true };
+    return await sessionRecovery.reconnect();
   } catch (err) {
     console.error('❌ Erro ao reconectar:', err.message);
     connectionState.lastError = err.message;

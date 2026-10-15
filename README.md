@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/versão-1.5.0-3568cf" alt="Versão 1.5.0">
+  <img src="https://img.shields.io/badge/versão-1.5.1-3568cf" alt="Versão 1.5.1">
   <img src="https://img.shields.io/badge/plataforma-Windows%20x64-0078D4" alt="Windows x64">
   <img src="https://img.shields.io/badge/Electron-43-47848F" alt="Electron 43">
   <img src="https://img.shields.io/badge/IA-Google%20Gemini-8E75B2" alt="Google Gemini">
@@ -34,6 +34,14 @@ O projeto foi desenvolvido como uma solução completa de produto: possui identi
 
 > [!IMPORTANT]
 > O TurboWhats utiliza automação do WhatsApp Web por meio de `whatsapp-web.js`. Não é uma integração oficial da API WhatsApp Business. Mudanças no WhatsApp Web podem afetar o funcionamento. Use o sistema somente em atendimentos e campanhas autorizados pelos destinatários.
+
+## Correções da versão 1.5.1
+
+- Navegações internas do WhatsApp Web reutilizam os eventos já registrados no mesmo documento, com uma única instalação por página.
+- Eventos repetidos de autenticação e conexão não interrompem leitores nem zeram contadores.
+- Recargas internas pausam a leitura até os módulos do WhatsApp ficarem disponíveis, preservando a sessão e a deduplicação.
+- A reconexão manual preserva conexões saudáveis e serializa solicitações simultâneas. Falhas de autenticação não deixam tentativas atrasadas capazes de destruir uma sessão recuperada.
+- Diagnósticos de conexão registram estados, autenticação e desconexões reais em `message-tracker.log`.
 
 ## Novidades da versão 1.5.0
 
@@ -300,7 +308,7 @@ O executável possui aproximadamente 203 MB porque inclui o ambiente Electron e 
 > [!NOTE]
 > O projeto ainda não possui certificado comercial de assinatura. O Windows SmartScreen pode exibir **Editor desconhecido** na primeira execução. Confira a origem e o hash antes de autorizar.
 
-O SHA-256 da versão 1.5.0 acompanha o executável na [Release v1.5.0](https://github.com/louro2023/ChatbotcomIA/releases/tag/v1.5.0).
+O SHA-256 da versão 1.5.1 acompanha o executável na [Release v1.5.1](https://github.com/louro2023/ChatbotcomIA/releases/tag/v1.5.1).
 
 ### Executar pelo código-fonte
 

@@ -60,13 +60,18 @@ function createGroupReader({ snapshot, handle, onStatus = () => {}, onError = ()
           await accept(message, 'scan');
         }
       }
-      if (running && version === generation) onStatus({ running: true, lastScanAt: new Date(now()).toISOString(), error: '' });
+      if (running && version === generation) onStatus({ running: true, syncing: false, lastScanAt: new Date(now()).toISOString(), error: '' });
     } catch (error) {
-      if (running && version === generation) { onError(error); onStatus({ running: true, error: error.message }); }
+      if (running && version === generation) {
+        const transient = error.code === 'WA_WEB_SYNCING' || /execution context was destroyed|cannot find context|window.require is not a function/i.test(error.message);
+        if (transient) onStatus({ running: true, syncing: true, error: '' });
+        else { onError(error); onStatus({ running: true, syncing: false, error: error.message }); }
+      }
     }
   }
   function stop() { running = false; generation++; clearTimeout(timer); timer = null; onStatus({ running: false }); }
   async function start() {
+    if (running) return;
     stop(); running = true; seeded = false; seen.clear(); startedAt = Math.floor(now() / 1000);
     const version = generation;
     await scan(version);
