@@ -1,11 +1,12 @@
 ﻿// This function runs in WhatsApp Web and returns plain data, not WWebJS models.
-function readGroupMessagesFromPage() {
+function readGroupMessagesFromPage(selectedGroupIds = null) {
   const collections = window.require('WAWebCollections');
+  const selected = selectedGroupIds === null ? null : new Set(selectedGroupIds);
   const messages = new Map();
   const idOf = value => typeof value === 'string' ? value : value?._serialized || '';
   const collect = (message, chatId = '') => {
     const remote = idOf(message.id?.remote) || chatId || idOf(message.from);
-    if (!remote.endsWith('@g.us') || message.isNotification) return;
+    if (!remote.endsWith('@g.us') || (selected && !selected.has(remote)) || message.isNotification) return;
     const id = message.id?._serialized || message.id?.$1;
     if (!id) return;
     messages.set(id, {
@@ -16,7 +17,7 @@ function readGroupMessagesFromPage() {
   };
   for (const chat of collections.Chat.getModelsArray()) {
     const id = idOf(chat.id);
-    if (!id.endsWith('@g.us')) continue;
+    if (!id.endsWith('@g.us') || (selected && !selected.has(id))) continue;
     for (const message of chat.msgs?.getModelsArray?.() || []) collect(message, id);
   }
   for (const message of collections.Msg?.getModelsArray?.() || []) collect(message);

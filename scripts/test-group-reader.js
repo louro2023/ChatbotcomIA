@@ -49,6 +49,9 @@ const { createGroupMonitor } = require('../Electron/group-monitor');
     const raw = { id: { _serialized: 'raw', remote: { _serialized: groupId }, fromMe: false }, body: '!privacy', t: 1000 };
     global.window = { require: () => ({ Chat: { getModelsArray: () => [{ id: { _serialized: groupId }, unreadCount: 0, msgs: { getModelsArray: () => [raw] } }] }, Msg: { getModelsArray: () => [raw, { ...raw, id: { _serialized: 'own', remote: groupId, fromMe: true } }] } }) };
     const result = readGroupMessagesFromPage(); assert.equal(result.length, 2); assert.equal(result[0].from, groupId); assert.equal(result[1].fromMe, true);
+    assert.equal(readGroupMessagesFromPage([]).length, 0);
+    assert.equal(readGroupMessagesFromPage(['other@g.us']).length, 0);
+    assert.equal(readGroupMessagesFromPage([groupId]).length, 2);
     delete global.window;
     console.log('Leitura contínua: evento real simulado, evento perdido recuperado por varredura, grupo lido, deduplicação, mensagens próprias, histórico, falha/recuperação, grupo inativo e reconexão OK.');
   } finally { reader.stop(); }

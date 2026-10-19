@@ -237,9 +237,14 @@ const groupReader = createGroupReader({
       throw error;
     }
     if (compatibility.patchedPrototypes) logMessageTracker('grupos:compatibilidade', 'Identificadores $1 normalizados para _serialized');
-    return client.pupPage.evaluate(readGroupMessagesFromPage);
+    return client.pupPage.evaluate(readGroupMessagesFromPage, Object.entries(groupMonitor.settings())
+      .filter(([, group]) => group.enabled).map(([id]) => id));
   },
-  handle: (message, source) => groupMonitor.handle(message, source),
+  handle: async (message, source) => {
+    if (!groupMonitor.settings()[message.from]?.enabled) return false;
+    if (!message.fromMe) await client.sendSeen(message.from);
+    return groupMonitor.handle(message, source);
+  },
   onStatus: status => { groupReaderStatus = { ...groupReaderStatus, ...status }; },
   onError: (error, groupId) => {
     logRuntimeError('grupos:leitura', error);
@@ -632,7 +637,7 @@ async function sendWhatsAppText(to, text, source = 'automatic') {
     if (loadConfig().simulatedTypingEnabled !== false) {
       await simulateWhatsAppTyping(to, text);
     }
-    await client.sendMessage(to, text);
+    await client.sendMessage(to, text, { sendSeen: false });
     recordOutboundMetric(true, source);
   } catch (error) {
     recordOutboundMetric(false, source);
@@ -1247,6 +1252,7 @@ function rememberProcessedMessage(messageId) {
 }
 
 async function handleIncomingMessage(msg, source = 'event') {
+  if (hasSelectedGroup()) return false;
   const from = String(msg?.from || '');
   if (msg?.fromMe || !/@(c\.us|lid)$/.test(from)) return true;
 
@@ -1286,6 +1292,7 @@ async function handleIncomingMessage(msg, source = 'event') {
 registerGroupMessageEvents(client, groupReader);
 
 client.on('message', msg => {
+  if (hasSelectedGroup()) return;
   if (msg?.fromMe || !/@(c\.us|lid)$/.test(String(msg?.from || ''))) return;
   // The event only wakes the scanner. It never sends directly: this gives the
   // user time to open the chat and guarantees that only still-unread chats reply.
@@ -1334,8 +1341,12 @@ async function fetchUnreadMessagesForChat(chatId, requestedLimit) {
   return messageModels.map(model => new Message(client, model));
 }
 
+function hasSelectedGroup() {
+  return connectionState.connected && Object.values(groupMonitor.settings()).some(group => group.enabled);
+}
+
 async function scanUnreadMessages() {
-  if (!connectionState.connected || unreadScanRunning) return;
+  if (!connectionState.connected || unreadScanRunning || hasSelectedGroup()) return;
   unreadScanRunning = true;
 
   try {
@@ -1359,6 +1370,7 @@ async function scanUnreadMessages() {
     }
 
     for (const chat of unreadChats) {
+      if (hasSelectedGroup()) return;
       const rawUnreadCount = Number(chat.unreadCount || 0);
       const unreadCount = rawUnreadCount < 0
         ? 1
@@ -1371,20 +1383,11 @@ async function scanUnreadMessages() {
         continue;
       }
 
-      let allHandled = true;
       for (const message of messages) {
         const source = rawUnreadCount < 0 ? 'marcada-não-lida' : 'não-lida';
-        const handled = await handleIncomingMessage(message, source);
-        if (!handled) allHandled = false;
+        await handleIncomingMessage(message, source);
       }
 
-      if (allHandled && messages.length > 0) {
-        try {
-          await client.sendSeen(chat.id);
-        } catch (error) {
-          console.warn(`Não foi possível marcar ${chat.id || 'chat'} como lida: ${error.message}`);
-        }
-      }
     }
   } catch (error) {
     if (connectionState.connected) logRuntimeError('varredura-não-lidas', error);
@@ -2512,9 +2515,9 @@ ipcMain.handle('bulk:start', async (_event, payload) => {
         if (!numberId) throw new Error('Número não registrado no WhatsApp');
         if (simulatedTyping) await simulateWhatsAppTyping(numberId._serialized, personalizedMessage || 'Imagem');
         if (media) {
-          await client.sendMessage(numberId._serialized, media, personalizedMessage ? { caption: personalizedMessage } : undefined);
+          await client.sendMessage(numberId._serialized, media, { sendSeen: false, ...(personalizedMessage ? { caption: personalizedMessage } : {}) });
         } else {
-          await client.sendMessage(numberId._serialized, personalizedMessage);
+          await client.sendMessage(numberId._serialized, personalizedMessage, { sendSeen: false });
         }
         sent++;
         sentSinceLongPause++;
@@ -3018,7 +3021,7 @@ async function maybeSendTTS(to, text) {
     const base64 = Buffer.from(await response.arrayBuffer()).toString('base64');
     const media = new MessageMedia('audio/mpeg', base64, 'resposta.mp3');
     whatsappSendAttempted = true;
-    await client.sendMessage(to, media);
+    await client.sendMessage(to, media, { sendSeen: false });
     recordOutboundMetric(true, 'ai-voice');
   } catch (err) {
     console.error('TTS falhou:', err.message);
