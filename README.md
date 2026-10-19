@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/versão-1.5.1-3568cf" alt="Versão 1.5.1">
+  <img src="https://img.shields.io/badge/versão-1.6.0-3568cf" alt="Versão 1.6.0">
   <img src="https://img.shields.io/badge/plataforma-Windows%20x64-0078D4" alt="Windows x64">
   <img src="https://img.shields.io/badge/Electron-43-47848F" alt="Electron 43">
   <img src="https://img.shields.io/badge/IA-Google%20Gemini-8E75B2" alt="Google Gemini">
@@ -34,6 +34,14 @@ O projeto foi desenvolvido como uma solução completa de produto: possui identi
 
 > [!IMPORTANT]
 > O TurboWhats utiliza automação do WhatsApp Web por meio de `whatsapp-web.js`. Não é uma integração oficial da API WhatsApp Business. Mudanças no WhatsApp Web podem afetar o funcionamento. Use o sistema somente em atendimentos e campanhas autorizados pelos destinatários.
+
+## Novidades da versão 1.6.0
+
+- **Envio automático no grupo:** configure um intervalo de 1 a 10080 minutos e de 1 a 20 mensagens, alternadas em sequência a cada envio.
+- Na aba **Grupos**, configure o grupo desejado, abra **Envio automático por intervalo**, preencha a mensagem, adicione variações se desejar, marque **Ativar envio automático** e clique em **Salvar envio automático**.
+- Ative o **Monitoramento deste grupo** e mantenha o aplicativo aberto e o WhatsApp conectado. O primeiro envio acontece depois do intervalo configurado. O painel informa o próximo envio e registra os envios e falhas na atividade do grupo.
+- As configurações são salvas por conta e grupo. Ao desativar o envio ou o grupo, os disparos param. Ao reiniciar ou reconectar, a contagem reinicia sem acumular envios atrasados. As variações voltam à primeira mensagem.
+- Mantido o isolamento da versão 1.5.2: com um grupo monitorado, as conversas privadas ficam fora da varredura e somente o grupo ativo recebe confirmação de leitura.
 
 ## Correções da versão 1.5.1
 

@@ -228,6 +228,17 @@ const groupMonitor = createGroupMonitor({
     catch (error) { recordOutboundMetric(false, 'group-command'); throw error; }
   }
 });
+const groupScheduler = require('./group-scheduler').createGroupScheduler({
+  account: () => connectionState.connected ? client.info?.wid?._serialized : '',
+  settings: () => groupMonitor.settings(),
+  typing: (id, text) => simulateWhatsAppTyping(id, text),
+  send: async (id, text) => {
+    const result = await client.sendMessage(id, text, { sendSeen: false });
+    if (!result?.id) throw new Error('O WhatsApp não confirmou o envio programado.');
+  },
+  report: reportGroupDecision,
+  onError: error => logRuntimeError('grupos:envio-programado', error)
+});
 const groupReader = createGroupReader({
   snapshot: async () => {
     const compatibility = await client.pupPage.evaluate(installWhatsAppMessageKeyCompatibility);
@@ -252,6 +263,7 @@ const groupReader = createGroupReader({
   }
 });
 ipcMain.handle('groups:runtime-status', async () => ({
+  schedules: groupScheduler.status(),
   ...groupReaderStatus, connected: connectionState.connected,
   account: connectionState.connected ? client.info?.wid?._serialized : ''
 }));
@@ -1398,6 +1410,7 @@ async function scanUnreadMessages() {
 
 function startUnreadScanner() {
   stopUnreadScanner();
+  groupScheduler.start();
   logMessageTracker('rastreador-iniciado', `intervalo ${UNREAD_SCAN_INTERVAL_MS}ms`);
   unreadScanTimer = setInterval(() => {
     void scanUnreadMessages();
@@ -1406,6 +1419,7 @@ function startUnreadScanner() {
 }
 
 function stopUnreadScanner() {
+  groupScheduler.stop();
   groupReader.stop();
   if (unreadScanTimer) clearInterval(unreadScanTimer);
   unreadScanTimer = null;
@@ -1503,6 +1517,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  groupScheduler.stop();
   groupReader.stop();
   if (instagramJob) instagramJob.cancelled = true;
   if (instagramBrowser) void instagramBrowser.close().catch(() => {});

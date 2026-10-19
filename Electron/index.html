@@ -108,6 +108,18 @@
               <div class="groups-form-actions"><button id="groups-save" class="btn btn-primary" type="submit">Salvar comando</button> <button id="groups-cancel-edit" class="btn btn-secondary" type="button">Limpar edição</button></div>
             </form>
             <div id="groups-command-area" hidden><div class="groups-command-heading"><h3>Comandos cadastrados</h3><span id="groups-command-count" class="group-badge"></span></div><div id="groups-commands"></div></div>
+            <form id="groups-schedule-form" class="groups-schedule" hidden>
+              <h3>Envio automático por intervalo</h3>
+              <p>Envie uma mensagem periodicamente neste grupo. As variações são alternadas em sequência a cada envio.</p>
+              <label for="group-schedule-minutes">Enviar a cada quantos minutos?</label>
+              <input id="group-schedule-minutes" type="number" min="1" max="10080" step="1" value="30" required>
+              <div id="group-schedule-messages"></div>
+              <button id="group-schedule-add" type="button" class="btn btn-secondary btn-small">Adicionar variação</button>
+              <label><input id="group-schedule-enabled" type="checkbox"> Ativar envio automático</label>
+              <small>Ative também o monitoramento deste grupo e mantenha o bot aberto e conectado. O primeiro envio ocorre após o intervalo. Ao reconectar, a contagem reinicia sem enviar mensagens atrasadas.</small>
+              <div class="groups-form-actions"><button id="group-schedule-save" type="submit" class="btn btn-primary">Salvar envio automático</button></div>
+              <p id="group-schedule-status" role="status" aria-live="polite"></p>
+            </form>
             </div>
           </div>
         </div>

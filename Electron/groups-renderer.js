@@ -6,13 +6,33 @@
   const feedback = text => { el('groups-feedback').textContent = text; };
   const searchKey = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   const node = (tag, text) => { const element = document.createElement(tag); if (text) element.textContent = text; return element; };
+  function addScheduleMessage(value = '') {
+    const list = el('group-schedule-messages');
+    if (list.children.length >= 20) return;
+    const row = node('div'); row.className = 'group-schedule-variation';
+    const label = node('label', 'Mensagem / variação');
+    const text = node('textarea'); text.rows = 4; text.required = true; text.maxLength = 10000; text.value = value;
+    text.placeholder = 'Escreva a mensagem para enviar no grupo. Aceita emojis, links e várias linhas.';
+    label.append(text);
+    const remove = button('Remover variação');
+    remove.onclick = () => { if (list.children.length > 1) row.remove(); else text.value = ''; };
+    row.append(label, remove); list.append(row);
+  }
+  function loadSchedule() {
+    const schedule = settings[selected]?.schedule;
+    el('group-schedule-minutes').value = schedule?.intervalMinutes || 30;
+    el('group-schedule-enabled').checked = schedule?.enabled === true;
+    el('group-schedule-messages').replaceChildren();
+    for (const text of schedule?.messages || ['']) addScheduleMessage(text);
+    el('group-schedule-status').textContent = '';
+  }
   function clearForm() {
     editing = ''; el('groups-form').reset(); el('group-command-enabled').checked = true;
     el('groups-form-title').textContent = 'Novo comando'; el('groups-save').textContent = 'Salvar comando';
   }
   function selectGroup(id) {
     if (selected !== id) {
-      selected = id; clearForm();
+      selected = id; clearForm(); loadSchedule();
       for (const name of ['received', 'sent', 'errors']) el(`groups-live-${name}`).textContent = '0';
       el('groups-live-activity').replaceChildren();
       el('groups-live-error').hidden = true;
@@ -66,6 +86,8 @@
     el('groups-selected').textContent = current ? current.name : 'Selecione um grupo';
     el('groups-empty').hidden = Boolean(current);
     el('groups-form').hidden = !current;
+    el('groups-schedule-form').hidden = !current;
+    el('groups-schedule-form').querySelectorAll('input,textarea,button').forEach(input => { input.disabled = busy || !connected; });
     el('groups-selected-controls').hidden = !current;
     el('groups-command-area').hidden = !current;
     el('groups-form').querySelectorAll('input,textarea,button').forEach(input => { input.disabled = busy || !connected; });
@@ -114,8 +136,9 @@
       if (version !== connectionVersion) return;
       if (!result.ok) throw new Error(result.error);
       settings = result.settings;
+      if (payload.action === 'save-schedule') loadSchedule();
       if (payload.action === 'save-command' || payload.id === editing) clearForm();
-      feedback(payload.action === 'save-command' ? 'Comando salvo. Cadastre outro comando ou teste no grupo com outra conta.' : 'Configuração salva.');
+      feedback(payload.action === 'save-command' ? 'Comando salvo. Cadastre outro comando ou teste no grupo com outra conta.' : payload.action === 'save-schedule' ? 'Envio automático salvo. As variações serão alternadas a cada intervalo.' : 'Configuração salva.');
     } catch (error) { feedback(error.message); }
     finally { busy = false; render(); void refreshRuntime(); }
   }
@@ -160,6 +183,14 @@
       const status = await api.getGroupRuntimeStatus();
       if (selected !== groupId || status.account !== account || version !== connectionVersion) return;
       const item = status.groups[groupId] || {};
+      const schedule = settings[groupId]?.schedule;
+      const runtime = status.schedules?.[groupId];
+      el('group-schedule-status').textContent = !schedule?.enabled ? 'Envio automático desativado.'
+        : !status.connected ? 'Envio pausado: WhatsApp desconectado.'
+        : !settings[groupId]?.enabled ? 'Ative o monitoramento deste grupo para iniciar os envios.'
+        : runtime?.error ? `Falha no envio: ${runtime.error}. Nova tentativa no próximo intervalo.`
+        : runtime?.nextAt ? `Próximo envio: ${new Date(runtime.nextAt).toLocaleString('pt-BR')} · ${schedule.messages.length} variação(ões).`
+        : 'Preparando o próximo envio...';
       const decisions = {
         'own-message': 'Mensagem da própria conta ignorada. Teste com outra conta.',
         'no-match': 'Mensagem lida; nenhum comando ativo corresponde ao texto completo.',
@@ -200,6 +231,13 @@
     }
   }
   el('groups-search').addEventListener('input', render);
+  el('group-schedule-add').onclick = () => addScheduleMessage();
+  el('groups-schedule-form').onsubmit = event => {
+    event.preventDefault();
+    void mutate({ action: 'save-schedule', intervalMinutes: Number(el('group-schedule-minutes').value),
+      messages: [...el('group-schedule-messages').querySelectorAll('textarea')].map(input => input.value),
+      enabled: el('group-schedule-enabled').checked });
+  };
   el('groups-form').onsubmit = event => { event.preventDefault(); void mutate({ action: 'save-command', id: editing || undefined, trigger: el('group-trigger').value, response: el('group-response').value, enabled: el('group-command-enabled').checked }); };
   el('groups-selected-enabled').onchange = event => mutate({ action: 'toggle-group', enabled: event.target.checked });
   el('groups-simulated-typing').onchange = event => mutate({ action: 'toggle-typing', enabled: event.target.checked });
@@ -215,6 +253,7 @@
     const wasConnected = connected; connected = data.connected === true;
     if (connected !== wasConnected) connectionVersion++;
     if (!connected && selected) {
+      el('group-schedule-status').textContent = 'Envio pausado: WhatsApp desconectado. A contagem reinicia ao reconectar.';
       el('groups-reader-status').textContent = 'Leitura indisponível: WhatsApp desconectado.';
       el('groups-live-error').hidden = false; el('groups-live-error').textContent = 'WhatsApp desconectado. Reconecte para retomar o monitoramento.';
     }

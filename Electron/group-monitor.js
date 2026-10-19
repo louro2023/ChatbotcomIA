@@ -35,6 +35,12 @@ function createGroupMonitor({ read, write, account, send, typing = async () => {
       if (next.commands.some(command => command.trigger === trigger && command.id !== payload.id)) throw new Error('Este comando já existe neste grupo.');
       const command = { id: payload.id || crypto.randomUUID(), trigger, response, enabled: payload.enabled === true };
       if (index < 0) next.commands.push(command); else next.commands[index] = command;
+    } else if (payload.action === 'save-schedule') {
+      const intervalMinutes = Number(payload.intervalMinutes);
+      const messages = Array.isArray(payload.messages) ? payload.messages.map(text => String(text).trim()).filter(Boolean) : [];
+      if (!Number.isInteger(intervalMinutes) || intervalMinutes < 1 || intervalMinutes > 10080) throw new Error('Informe um intervalo inteiro entre 1 e 10080 minutos.');
+      if (!messages.length || messages.length > 20 || messages.some(text => text.length > 10000)) throw new Error('Adicione de 1 a 20 mensagens, com até 10000 caracteres cada.');
+      next.schedule = { enabled: payload.enabled === true, intervalMinutes, messages, revision: crypto.randomUUID() };
     } else if (payload.action === 'toggle-typing') {
       next.simulatedTypingEnabled = payload.enabled === true;
     } else {
