@@ -4,7 +4,10 @@ function validateCredentials(value = {}) {
   if (!Number.isSafeInteger(apiId) || apiId <= 0 || !/^[a-f\d]{32}$/i.test(apiHash)) throw new Error('Informe o API ID e o API Hash obtidos em my.telegram.org.');
   return { apiId, apiHash };
 }
-function defaultClient({ apiId, apiHash, session }) {
+function createTelegramTransport({ apiId, apiHash, session }) {
+  // The optional cifrante native addon crashes on Electron/Windows. Its portable
+  // backend implements the same MTProto encryption without loading that addon.
+  if (process.versions.electron) process.env.CIFRANTE_NATIVE = '0';
   const { TelegramClient, Api, utils } = require('teleproto');
   const { StringSession } = require('teleproto/sessions');
   const { NewMessage } = require('teleproto/events');
@@ -15,7 +18,7 @@ function defaultClient({ apiId, apiHash, session }) {
   client.setLogLevel('none');
   return { client, Api, NewMessage, peerId: peer => utils.getPeerId(peer).toString() };
 }
-function createTelegramConnection({ readAuth, writeAuth, clearAuth, onStatus = () => {}, onMessage = async () => {}, onReady = () => {}, onStop = () => {}, createClient = defaultClient, now = Date.now }) {
+function createTelegramConnection({ readAuth, writeAuth, clearAuth, onStatus = () => {}, onMessage = async () => {}, onReady = () => {}, onStop = () => {}, createClient = createTelegramTransport, now = Date.now }) {
   let client = null, generation = 0, task = null, pendingPassword = null, heartbeat = null, abortLogin = null;
   let state = { connected: false, phase: 'idle', account: '', label: '', error: '', qr: null };
   const entities = new Map();
@@ -170,4 +173,4 @@ function createTelegramConnection({ readAuth, writeAuth, clearAuth, onStatus = (
   }
   return { connect, disconnect, password, status, account, listGroups, send, markRead, typing, sendFile };
 }
-module.exports = { createTelegramConnection, validateCredentials, isTelegramGroupId };
+module.exports = { createTelegramConnection, createTelegramTransport, validateCredentials, isTelegramGroupId };
