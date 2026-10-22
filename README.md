@@ -316,7 +316,7 @@ O executável possui aproximadamente 203 MB porque inclui o ambiente Electron e 
 > [!NOTE]
 > O projeto ainda não possui certificado comercial de assinatura. O Windows SmartScreen pode exibir **Editor desconhecido** na primeira execução. Confira a origem e o hash antes de autorizar.
 
-O SHA-256 da versão 1.5.1 acompanha o executável na [Release v1.5.1](https://github.com/louro2023/ChatbotcomIA/releases/tag/v1.5.1).
+O SHA-256 da versão 1.6.0 acompanha o executável na [Release v1.6.0](https://github.com/louro2023/ChatbotcomIA/releases/tag/v1.6.0).
 
 ### Executar pelo código-fonte
 
