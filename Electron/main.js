@@ -181,12 +181,19 @@ const { typeInstagramMessage } = require('./instagram-browser');
 const legacyProjectRoot = path.join(__dirname, '..');
 const persistentDataRoot = path.join(app.getPath('userData'), 'app-data');
 const configPath = path.join(persistentDataRoot, 'config.json');
+const telegram = require('./telegram-integration').installTelegram({
+  ipcMain, safeStorage, root: persistentDataRoot,
+  emit: (name, data) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(name, data); },
+  processPrivate: message => processIncomingMessage(message),
+  onError: error => logRuntimeError('telegram', error)
+});
 const runtimeLogPath = path.join(persistentDataRoot, 'runtime-errors.log');
 const messageTrackerLogPath = path.join(persistentDataRoot, 'message-tracker.log');
 const geminiUsagePath = path.join(persistentDataRoot, 'gemini-usage.json');
 const metricsPath = path.join(persistentDataRoot, 'metrics.json');
 const bulkSafetyStatePath = path.join(persistentDataRoot, 'bulk-safety-state.json');
 const firstMessageStatePath = path.join(persistentDataRoot, 'first-message-state.json');
+const telegramFirstMessageStatePath = path.join(persistentDataRoot, 'telegram-first-message-state.json');
 const instagramStatePath = path.join(persistentDataRoot, 'instagram-monitor-state.json');
 const instagramSessionPath = path.join(persistentDataRoot, 'instagram-session');
 const delay = ms => new Promise(res => setTimeout(res, ms));
@@ -571,10 +578,10 @@ function hashContactId(contactId) {
   return crypto.createHash('sha256').update(String(contactId || '')).digest('hex');
 }
 
-function loadFirstMessageState() {
-  if (!fs.existsSync(firstMessageStatePath)) return new Set();
+function loadFirstMessageState(file = firstMessageStatePath) {
+  if (!fs.existsSync(file)) return new Set();
   try {
-    const state = JSON.parse(fs.readFileSync(firstMessageStatePath, 'utf8'));
+    const state = JSON.parse(fs.readFileSync(file, 'utf8'));
     const hashes = Array.isArray(state?.greetedContactHashes) ? state.greetedContactHashes : [];
     return new Set(hashes.filter(value => /^[a-f0-9]{64}$/i.test(String(value))));
   } catch (error) {
@@ -583,11 +590,12 @@ function loadFirstMessageState() {
   }
 }
 
-function saveFirstMessageState() {
+function saveFirstMessageState(contactId = '') {
   try {
-    fs.writeFileSync(firstMessageStatePath, JSON.stringify({
+    const isTelegram = contactId.startsWith('telegram:');
+    fs.writeFileSync(isTelegram ? telegramFirstMessageStatePath : firstMessageStatePath, JSON.stringify({
       version: 1,
-      greetedContactHashes: [...greetedContactHashes]
+      greetedContactHashes: [...(isTelegram ? telegramGreetedContactHashes : greetedContactHashes)]
     }, null, 2));
   } catch (error) {
     logRuntimeError('primeira-mensagem:gravação', error);
@@ -595,19 +603,20 @@ function saveFirstMessageState() {
 }
 
 function hasBotRespondedToContact(contactId) {
-  return greetedContactHashes.has(hashContactId(contactId));
+  return (contactId.startsWith('telegram:') ? telegramGreetedContactHashes : greetedContactHashes).has(hashContactId(contactId));
 }
 
 function rememberBotResponse(contactId) {
   const contactHash = hashContactId(contactId);
-  if (greetedContactHashes.has(contactHash)) return;
-  greetedContactHashes.add(contactHash);
-  saveFirstMessageState();
+  const state = contactId.startsWith('telegram:') ? telegramGreetedContactHashes : greetedContactHashes;
+  if (state.has(contactHash)) return;
+  state.add(contactHash);
+  saveFirstMessageState(contactId);
 }
 
 function clearFirstMessageState() {
   greetedContactHashes.clear();
-  firstMessagePromises.clear();
+  for (const key of firstMessagePromises.keys()) if (!key.startsWith('telegram:')) firstMessagePromises.delete(key);
   try {
     if (fs.existsSync(firstMessageStatePath)) fs.rmSync(firstMessageStatePath, { force: true });
   } catch (error) {
@@ -645,6 +654,17 @@ async function simulateWhatsAppTyping(to, text) {
 }
 
 async function sendWhatsAppText(to, text, source = 'automatic') {
+  if (String(to).startsWith('telegram:')) {
+    if (telegram.hasSelectedGroup()) throw new Error('Atendimento privado pausado: grupo Telegram ativo.');
+    if (loadConfig().simulatedTypingEnabled !== false) {
+      await telegram.typing(to);
+      await delay(calculateSimulatedTypingDelay(text));
+    }
+    if (telegram.hasSelectedGroup()) throw new Error('Atendimento privado pausado: grupo Telegram ativo.');
+    await telegram.send(to, text);
+    recordOutboundMetric(true, `telegram:${source}`);
+    return;
+  }
   try {
     if (loadConfig().simulatedTypingEnabled !== false) {
       await simulateWhatsAppTyping(to, text);
@@ -805,6 +825,7 @@ function loadDefaultNoReply() {
 
 const conversationByUser = new Map();
 const greetedContactHashes = loadFirstMessageState();
+const telegramGreetedContactHashes = loadFirstMessageState(telegramFirstMessageStatePath);
 const firstMessagePromises = new Map();
 const processedMessageIds = new Map();
 const processingMessageIds = new Set();
@@ -1451,7 +1472,8 @@ function createWindow() {
         || origin === 'https://ai.google.dev'
         || origin === 'https://myaccount.google.com'
         || origin === 'https://support.google.com'
-        || origin === 'https://wa.me') {
+        || origin === 'https://wa.me'
+        || origin === 'https://my.telegram.org') {
         shell.openExternal(url);
       }
     } catch (_error) {
@@ -1479,6 +1501,7 @@ function createWindow() {
   // Sessões existentes continuam automaticamente. Uma conexão nova exige
   // que o usuário escolha o aplicativo antes de o QR Code ser solicitado.
   mainWindow.webContents.once('did-finish-load', () => {
+    void telegram.restore();
     if (!directoryHasEntries(localAuthSessionPath())) {
       showWhatsAppAccountTypeChoice();
       return;
@@ -1517,6 +1540,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  void telegram.disconnect();
   groupScheduler.stop();
   groupReader.stop();
   if (instagramJob) instagramJob.cancelled = true;
@@ -1710,8 +1734,11 @@ async function logoutAndClearWhatsAppSession() {
   connectionState.connected = false;
   connectionState.attempting = false;
   connectionState.initializing = false;
-  conversationByUser.clear();
-  messageQueue.clear();
+  for (const key of conversationByUser.keys()) if (!key.startsWith('telegram:')) conversationByUser.delete(key);
+  for (const [key, queue] of messageQueue) {
+    if (key.startsWith('telegram:')) continue;
+    clearTimeout(queue.timer); queue.messages.forEach(message => message.resolve?.(false)); messageQueue.delete(key);
+  }
   clearFirstMessageState();
   processedMessageIds.clear();
   processingMessageIds.clear();
@@ -1723,6 +1750,7 @@ ipcMain.handle('app:logout-and-quit', async () => {
   }
 
   try {
+    await telegram.disconnect({ logout: true });
     await logoutAndClearWhatsAppSession();
     setTimeout(() => app.quit(), 100);
     return { ok: true };
@@ -3033,7 +3061,12 @@ async function maybeSendTTS(to, text) {
       body: JSON.stringify({ text, model_id: 'eleven_multilingual_v2' })
     });
     if (!response.ok) throw new Error(`ElevenLabs respondeu com HTTP ${response.status}`);
-    const base64 = Buffer.from(await response.arrayBuffer()).toString('base64');
+    const audio = Buffer.from(await response.arrayBuffer());
+    if (String(to).startsWith('telegram:')) {
+      if (!telegram.hasSelectedGroup()) await telegram.sendFile(to, audio, 'resposta.mp3');
+      return;
+    }
+    const base64 = audio.toString('base64');
     const media = new MessageMedia('audio/mpeg', base64, 'resposta.mp3');
     whatsappSendAttempted = true;
     await client.sendMessage(to, media, { sendSeen: false });

@@ -3264,6 +3264,14 @@ select:focus-visible {
 #groups-form { display: flex; flex-direction: column; gap: 10px; padding-bottom: 24px; margin-bottom: 22px; border-bottom: 1px solid var(--border-light); }
 #groups-form h4 { margin-bottom: 4px; }
 .groups-schedule { display: flex; flex-direction: column; gap: 12px; margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border-light); }
+.telegram-connection { margin-top: 24px; width: 100%; }
+.telegram-connection form { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+.telegram-connection [hidden] { display: none !important; }
+.telegram-connection p { margin: 12px 0; line-height: 1.6; }
+.telegram-connection a { color: #74c3ff; }
+#telegram-qr { width: 260px; max-width: 100%; background: white; border-radius: 12px; padding: 12px; }
+.groups-platform-label { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+#groups-platform { width: auto; min-width: 160px; }
 .groups-schedule p, .groups-schedule small { color: var(--text-secondary); }
 #group-schedule-messages { display: flex; flex-direction: column; gap: 14px; }
 .group-schedule-variation { display: flex; flex-direction: column; gap: 8px; }

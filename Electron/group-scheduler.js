@@ -1,4 +1,4 @@
-function createGroupScheduler({ account, settings, send, typing = async () => {}, report = () => {}, onError = () => {}, now = Date.now }) {
+function createGroupScheduler({ account, settings, send, typing = async () => {}, report = () => {}, onError = () => {}, now = Date.now, isGroupId = id => id.endsWith('@g.us') }) {
   const jobs = new Map();
   let timer = null, running = false, busy = false, generation = 0;
   function signature(owner, id, group) {
@@ -20,7 +20,7 @@ function createGroupScheduler({ account, settings, send, typing = async () => {}
       const groups = owner ? settings() : {};
       for (const id of jobs.keys()) if (!valid(groups[id]) || jobs.get(id).signature !== signature(owner, id, groups[id])) jobs.delete(id);
       for (const [id, group] of Object.entries(groups)) {
-        if (!id.endsWith('@g.us') || !valid(group)) continue;
+        if (!isGroupId(id) || !valid(group)) continue;
         const interval = group.schedule.intervalMinutes * 60000;
         if (!jobs.has(id)) jobs.set(id, { signature: signature(owner, id, group), nextAt: now() + interval, index: 0, lastSentAt: null, error: '' });
         const job = jobs.get(id);

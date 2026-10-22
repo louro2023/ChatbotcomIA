@@ -188,7 +188,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   const btnSair = document.getElementById('btnSair');
   if (btnSair) {
     btnSair.onclick = async () => {
-      const confirmed = await askConfirmation('Sair desconectará esta conta do WhatsApp Web e exigirá um novo QR Code no próximo acesso. Deseja continuar?', { confirmLabel: 'Sair' });
+      const confirmed = await askConfirmation('Sair removerá as sessões do WhatsApp e do Telegram e exigirá nova conexão no próximo acesso. Para manter as sessões, feche a janela. Deseja continuar?', { confirmLabel: 'Sair' });
       if (!confirmed) return;
 
       btnSair.disabled = true;

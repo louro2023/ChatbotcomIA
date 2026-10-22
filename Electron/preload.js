@@ -1,6 +1,14 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  getTelegramState: () => ipcRenderer.invoke('telegram:state'),
+  connectTelegram: payload => ipcRenderer.invoke('telegram:connect', payload),
+  submitTelegramPassword: password => ipcRenderer.invoke('telegram:password', password),
+  logoutTelegram: () => ipcRenderer.invoke('telegram:logout'),
+  onTelegramStatus: callback => ipcRenderer.on('telegram:status', (_event, data) => callback(data)),
+  listTelegramGroups: () => ipcRenderer.invoke('telegram:groups:list'),
+  updateTelegramGroup: payload => ipcRenderer.invoke('telegram:groups:update', payload),
+  getTelegramGroupRuntime: () => ipcRenderer.invoke('telegram:groups:runtime'),
   getGroupRuntimeStatus: () => ipcRenderer.invoke('groups:runtime-status'),
   onWaQr: (callback) => {
     ipcRenderer.on('wa-qr', (_event, qrUrl) => callback(qrUrl));

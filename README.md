@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/versão-1.6.0-3568cf" alt="Versão 1.6.0">
+  <img src="https://img.shields.io/badge/versão-1.7.0-3568cf" alt="Versão 1.7.0">
   <img src="https://img.shields.io/badge/plataforma-Windows%20x64-0078D4" alt="Windows x64">
   <img src="https://img.shields.io/badge/Electron-43-47848F" alt="Electron 43">
   <img src="https://img.shields.io/badge/IA-Google%20Gemini-8E75B2" alt="Google Gemini">
@@ -34,6 +34,17 @@ O projeto foi desenvolvido como uma solução completa de produto: possui identi
 
 > [!IMPORTANT]
 > O TurboWhats utiliza automação do WhatsApp Web por meio de `whatsapp-web.js`. Não é uma integração oficial da API WhatsApp Business. Mudanças no WhatsApp Web podem afetar o funcionamento. Use o sistema somente em atendimentos e campanhas autorizados pelos destinatários.
+
+## Novidades da versão 1.7.0
+
+- **Telegram e WhatsApp simultâneos:** uma sessão de cada plataforma, sem desconectar a outra ao conectar, selecionar um grupo ou sair de uma plataforma.
+- **Telegram por QR Code:** na aba **Status**, preencha o API ID e o API Hash de seu aplicativo obtidos em [my.telegram.org](https://my.telegram.org), clique em **Conectar Telegram / gerar QR Code** e escaneie pelo celular em **Configurações → Dispositivos → Conectar dispositivo**. Se houver verificação em duas etapas, informe a senha no campo exibido pelo aplicativo.
+- **Grupos por plataforma:** escolha WhatsApp ou Telegram no seletor da aba **Monitoramento de Grupos**. Comandos, grupo ativo, envios por intervalo e variações são salvos separadamente por conta e plataforma. É possível monitorar um grupo em cada plataforma ao mesmo tempo.
+- **Atendimento no Telegram:** as regras, mensagens padrão e IA configuradas no aplicativo atendem novas mensagens privadas, incluindo anexos compatíveis e respostas em áudio quando configuradas. Histórico e primeira resposta são separados por conta/plataforma. Ao monitorar um grupo, o atendimento privado pausa apenas na plataforma daquele grupo.
+- **Leitura restrita:** apenas o grupo monitorado recebe confirmação de leitura; outros grupos e conversas privadas não são marcados como lidos automaticamente.
+- **Sessão protegida:** as credenciais e a sessão Telegram são cifradas pelo armazenamento seguro do Windows. A senha de duas etapas não é salva. Fechar a janela preserva as sessões; **Sair** remove ambas. **Desconectar Telegram** remove apenas a sessão Telegram.
+- A autenticação Telegram usa MTProto com a biblioteca `teleproto`. O fluxo de QR Code e as credenciais necessárias são descritos na [documentação oficial do Telegram](https://core.telegram.org/api/qr-login).
+- Os disparos por listas de números de telefone e a importação da agenda WhatsApp continuam específicos do WhatsApp; os envios programados de grupos estão disponíveis em ambas as plataformas. Canais de transmissão Telegram não são tratados como grupos.
 
 ## Novidades da versão 1.6.0
 
@@ -316,7 +327,7 @@ O executável possui aproximadamente 203 MB porque inclui o ambiente Electron e 
 > [!NOTE]
 > O projeto ainda não possui certificado comercial de assinatura. O Windows SmartScreen pode exibir **Editor desconhecido** na primeira execução. Confira a origem e o hash antes de autorizar.
 
-O SHA-256 da versão 1.6.0 acompanha o executável na [Release v1.6.0](https://github.com/louro2023/ChatbotcomIA/releases/tag/v1.6.0).
+O SHA-256 da versão 1.7.0 acompanha o executável na [Release v1.7.0](https://github.com/louro2023/ChatbotcomIA/releases/tag/v1.7.0).
 
 ### Executar pelo código-fonte
 

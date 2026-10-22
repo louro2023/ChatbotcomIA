@@ -1,11 +1,11 @@
 ﻿const crypto = require('crypto');
 const normalize = value => String(value || '').trim().toLowerCase();
-function createGroupMonitor({ read, write, account, send, typing = async () => {}, report = () => {} }) {
+function createGroupMonitor({ read, write, account, send, typing = async () => {}, report = () => {}, isGroupId = id => id.endsWith('@g.us') }) {
   const pending = new Set();
   const done = new Set();
   function accountKey() {
     const id = account();
-    if (!id) throw new Error('WhatsApp indisponível.');
+    if (!id) throw new Error('Conta indisponível.');
     return crypto.createHash('sha256').update(id).digest('hex');
   }
   function settings() { return read()[accountKey()] || {}; }
@@ -14,7 +14,7 @@ function createGroupMonitor({ read, write, account, send, typing = async () => {
     const state = read();
     const groups = state[key] || {};
     const id = String(payload.groupId || '');
-    if (!id.endsWith('@g.us') || ['__proto__', 'constructor', 'prototype'].includes(id)) throw new Error('Grupo inválido.');
+    if (!isGroupId(id) || ['__proto__', 'constructor', 'prototype'].includes(id)) throw new Error('Grupo inválido.');
     const previous = groups[id] || { enabled: false, commands: [] };
     const next = { ...previous, commands: previous.commands.slice() };
     if (payload.action === 'toggle-group') {
@@ -55,7 +55,7 @@ function createGroupMonitor({ read, write, account, send, typing = async () => {
     return state[key];
   }
   async function handle(message, source = 'event') {
-    if (!String(message?.from || '').endsWith('@g.us') || !account()) return false;
+    if (!isGroupId(String(message?.from || '')) || !account()) return false;
     const group = settings()[message.from];
     if (!group?.enabled) return false;
     const notify = (decision, details = {}) => report({ groupId: message.from, source, decision, ...details });

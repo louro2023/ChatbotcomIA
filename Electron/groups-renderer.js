@@ -1,5 +1,14 @@
 ﻿(() => {
-  const api = window.electronAPI;
+  const originalApi = window.electronAPI;
+  let platform = 'whatsapp';
+  const connections = { whatsapp: { connected: false }, telegram: { connected: false } };
+  const platformLabel = () => platform === 'telegram' ? 'Telegram' : 'WhatsApp';
+  const api = {
+    listGroups: () => platform === 'telegram' ? originalApi.listTelegramGroups() : originalApi.listGroups(),
+    updateGroup: payload => platform === 'telegram' ? originalApi.updateTelegramGroup(payload) : originalApi.updateGroup(payload),
+    getGroupRuntimeStatus: () => platform === 'telegram' ? originalApi.getTelegramGroupRuntime() : originalApi.getGroupRuntimeStatus(),
+    getGroupPhoto: payload => platform === 'telegram' ? Promise.resolve('') : originalApi.getGroupPhoto?.(payload)
+  };
   let connected = false, account = '', groups = [], settings = {}, selected = '', editing = '', busy = false;
   let connectionVersion = 0;
   const el = id => document.getElementById(id);
@@ -47,13 +56,13 @@
     const result = node('button', text); result.type = 'button'; result.className = className; return result;
   }
   function render() {
-    el('groups-status').textContent = connected ? `${account ? `Conta: ${account.split('@')[0]}` : 'WhatsApp conectado'}${selected ? '' : ` · ${groups.length} grupo(s) disponível(is)`}` : 'Monitoramento indisponível: WhatsApp desconectado.';
+    el('groups-status').textContent = connected ? `${platformLabel()} · ${account ? `Conta: ${account.split('@')[0]}` : 'Conectado'}${selected ? '' : ` · ${groups.length} grupo(s) disponível(is)`}` : `Monitoramento indisponível: ${platformLabel()} desconectado.`;
     el('groups-refresh').disabled = busy || !connected;
     el('groups-refresh').textContent = busy ? 'Aguarde...' : 'Atualizar grupos';
     const list = el('groups-list'); const scrollTop = list.scrollTop; list.replaceChildren();
     const filtered = groups.filter(group => searchKey(group.name).includes(searchKey(el('groups-search').value.trim())));
     el('groups-count').textContent = groups.length ? `${filtered.length} de ${groups.length} grupo(s)` : '';
-    if (!groups.length) list.textContent = connected ? 'Atualize a lista para carregar seus grupos.' : 'Conecte o WhatsApp para listar seus grupos.';
+    if (!groups.length) list.textContent = connected ? 'Atualize a lista para carregar seus grupos.' : `Conecte o ${platformLabel()} para listar seus grupos.`;
     else if (!filtered.length) list.textContent = 'Nenhum grupo corresponde à pesquisa. Tente outro nome.';
     for (const group of filtered) {
       const row = node('div'); row.className = `group-row${selected === group.id ? ' selected' : ''}`; row.dataset.groupId = group.id;
@@ -140,12 +149,12 @@
       if (payload.action === 'save-command' || payload.id === editing) clearForm();
       feedback(payload.action === 'save-command' ? 'Comando salvo. Cadastre outro comando ou teste no grupo com outra conta.' : payload.action === 'save-schedule' ? 'Envio automático salvo. As variações serão alternadas a cada intervalo.' : 'Configuração salva.');
     } catch (error) { feedback(error.message); }
-    finally { busy = false; render(); void refreshRuntime(); }
+    finally { if (version === connectionVersion) { busy = false; render(); void refreshRuntime(); } }
   }
   async function refresh() {
     if (busy || !connected || !api.listGroups) return;
     const version = connectionVersion;
-    busy = true; render(); feedback('Carregando grupos do WhatsApp...');
+    busy = true; render(); feedback(`Carregando grupos do ${platformLabel()}...`);
     try {
       const result = await api.listGroups();
       if (!connected || version !== connectionVersion) return;
@@ -155,7 +164,7 @@
       if (!groups.some(group => group.id === selected)) { selected = ''; clearForm(); }
       feedback(groups.length ? 'Grupos atualizados. Clique em Configurar para cadastrar os comandos.' : 'Nenhum grupo retornado. Aguarde a sincronização e atualize novamente.');
     } catch (error) { feedback(error.message); }
-    finally { busy = false; render(); }
+    finally { if (version === connectionVersion) { busy = false; render(); } }
     void loadPhotos();
   }
   async function loadPhotos() {
@@ -176,7 +185,7 @@
     }
   }
   async function refreshRuntime() {
-    if (!api.getGroupRuntimeStatus || !selected || !el('groups-section').classList.contains('active')) return;
+    if (!connected || !api.getGroupRuntimeStatus || !selected || !el('groups-section').classList.contains('active')) return;
     const groupId = selected;
     const version = connectionVersion;
     try {
@@ -186,7 +195,7 @@
       const schedule = settings[groupId]?.schedule;
       const runtime = status.schedules?.[groupId];
       el('group-schedule-status').textContent = !schedule?.enabled ? 'Envio automático desativado.'
-        : !status.connected ? 'Envio pausado: WhatsApp desconectado.'
+        : !status.connected ? `Envio pausado: ${platformLabel()} desconectado.`
         : !settings[groupId]?.enabled ? 'Ative o monitoramento deste grupo para iniciar os envios.'
         : runtime?.error ? `Falha no envio: ${runtime.error}. Nova tentativa no próximo intervalo.`
         : runtime?.nextAt ? `Próximo envio: ${new Date(runtime.nextAt).toLocaleString('pt-BR')} · ${schedule.messages.length} variação(ões).`
@@ -201,7 +210,7 @@
         'send-error': `Falha ao enviar: ${item.error || 'consulte o diagnóstico'}`
       };
       const scanTime = status.lastScanAt ? new Date(status.lastScanAt).toLocaleTimeString('pt-BR') : '';
-      const summary = !status.connected ? 'Leitura indisponível: WhatsApp desconectado.'
+      const summary = !status.connected ? `Leitura indisponível: ${platformLabel()} desconectado.`
         : !settings[groupId]?.enabled ? 'Monitoramento inativo para este grupo.'
         : status.error ? `Falha na leitura: ${status.error}`
         : status.syncing ? 'WhatsApp sincronizando mensagens; sessão preservada.'
@@ -249,17 +258,26 @@
     el('groups-search').focus();
   };
   document.querySelector('[data-section="groups"]').addEventListener('click', refresh);
-  api.onWaStatus(data => {
+  function applyConnection(data) {
     const wasConnected = connected; connected = data.connected === true;
     if (connected !== wasConnected) connectionVersion++;
     if (!connected && selected) {
-      el('group-schedule-status').textContent = 'Envio pausado: WhatsApp desconectado. A contagem reinicia ao reconectar.';
-      el('groups-reader-status').textContent = 'Leitura indisponível: WhatsApp desconectado.';
-      el('groups-live-error').hidden = false; el('groups-live-error').textContent = 'WhatsApp desconectado. Reconecte para retomar o monitoramento.';
+      el('group-schedule-status').textContent = `Envio pausado: ${platformLabel()} desconectado. A contagem reinicia ao reconectar.`;
+      el('groups-reader-status').textContent = `Leitura indisponível: ${platformLabel()} desconectado.`;
+      el('groups-live-error').hidden = false; el('groups-live-error').textContent = `${platformLabel()} desconectado. Reconecte para retomar o monitoramento.`;
     }
     render();
     if (connected && !wasConnected && el('groups-section').classList.contains('active')) void refresh();
-  });
+  }
+  originalApi.onWaStatus(data => { connections.whatsapp = data; if (platform === 'whatsapp') applyConnection(data); });
+  originalApi.onTelegramStatus?.(data => { connections.telegram = data; if (platform === 'telegram') applyConnection(data); });
+  if (originalApi.getTelegramState) void originalApi.getTelegramState().then(data => { connections.telegram = data; if (platform === 'telegram') applyConnection(data); }).catch(() => {});
+  el('groups-platform').onchange = () => {
+    connectionVersion++; platform = el('groups-platform').value === 'telegram' ? 'telegram' : 'whatsapp';
+    selected = ''; groups = []; settings = {}; account = ''; connected = false; busy = false;
+    clearForm(); loadSchedule(); applyConnection(connections[platform]);
+    if (!connected) feedback(`Conecte o ${platformLabel()} na aba Status.`);
+  };
   window.setInterval(refreshRuntime, 2000);
   render();
 })();
