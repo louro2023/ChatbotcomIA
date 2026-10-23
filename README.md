@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/versão-1.7.0-3568cf" alt="Versão 1.7.0">
+  <img src="https://img.shields.io/badge/versão-1.8.0-3568cf" alt="Versão 1.8.0">
   <img src="https://img.shields.io/badge/plataforma-Windows%20x64-0078D4" alt="Windows x64">
   <img src="https://img.shields.io/badge/Electron-43-47848F" alt="Electron 43">
   <img src="https://img.shields.io/badge/IA-Google%20Gemini-8E75B2" alt="Google Gemini">
@@ -35,7 +35,15 @@ O projeto foi desenvolvido como uma solução completa de produto: possui identi
 > [!IMPORTANT]
 > O TurboWhats utiliza automação do WhatsApp Web por meio de `whatsapp-web.js`. Não é uma integração oficial da API WhatsApp Business. Mudanças no WhatsApp Web podem afetar o funcionamento. Use o sistema somente em atendimentos e campanhas autorizados pelos destinatários.
 
-## Novidades da versão 1.7.0
+## Novidades da versão 1.8.0
+
+- **Telegram somente por QR Code:** em **Status → Telegram**, clique em **Conectar Telegram / gerar QR Code** e escaneie no celular em **Configurações → Dispositivos → Conectar dispositivo**. API ID e API Hash não são mais necessários.
+- O QR é exibido pelo cliente oficial [Telegram Web K](https://web.telegram.org/k/) e renovado automaticamente. A senha de duas etapas continua sendo solicitada quando exigida pela sua conta.
+- A sessão fica em um perfil local exclusivo do Telegram Web. Fechar o aplicativo preserva a sessão; **Desconectar Telegram** remove esse perfil sem alterar o WhatsApp. Ao atualizar da versão 1.7.0, conecte o Telegram novamente por QR; as configurações de grupos e comandos são preservadas.
+- Mantidas as conexões simultâneas, os comandos, o atendimento privado com IA, anexos compatíveis, respostas em áudio e os agendamentos por grupo separados por plataforma. A leitura e os envios em segundo plano não precisam abrir as conversas.
+- Testes de integração, interface, navegador interno e exibição do QR no Telegram Web real. O login de uma conta real exige a leitura do QR no celular.
+
+## Histórico da versão 1.7.0 (conexão anterior por API)
 
 - **Telegram e WhatsApp simultâneos:** uma sessão de cada plataforma, sem desconectar a outra ao conectar, selecionar um grupo ou sair de uma plataforma.
 - **Telegram por QR Code:** na aba **Status**, preencha o API ID e o API Hash de seu aplicativo obtidos em [my.telegram.org](https://my.telegram.org), clique em **Conectar Telegram / gerar QR Code** e escaneie pelo celular em **Configurações → Dispositivos → Conectar dispositivo**. Se houver verificação em duas etapas, informe a senha no campo exibido pelo aplicativo.
@@ -327,7 +335,7 @@ O executável possui aproximadamente 203 MB porque inclui o ambiente Electron e 
 > [!NOTE]
 > O projeto ainda não possui certificado comercial de assinatura. O Windows SmartScreen pode exibir **Editor desconhecido** na primeira execução. Confira a origem e o hash antes de autorizar.
 
-O SHA-256 da versão 1.7.0 acompanha o executável na [Release v1.7.0](https://github.com/louro2023/ChatbotcomIA/releases/tag/v1.7.0).
+O SHA-256 da versão 1.8.0 acompanha o executável na [Release v1.8.0](https://github.com/louro2023/ChatbotcomIA/releases/tag/v1.8.0).
 
 ### Executar pelo código-fonte
 

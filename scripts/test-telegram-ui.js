@@ -23,9 +23,8 @@ const puppeteer = require('puppeteer');
       window.electronAPI = {
         onWaStatus: callback => wa.push(callback), onTelegramStatus: callback => tg.push(callback),
         getTelegramState: async () => window.tgState,
-        connectTelegram: async credentials => {
+        connectTelegram: async (...credentials) => {
           window.connections.push(credentials);
-          if (credentials?.apiId !== '12345') return { ok: false, error: 'Credenciais inválidas' };
           window.emitTg({ connected: false, phase: 'qr', qr }); return { ok: true };
         },
         submitTelegramPassword: async password => {
@@ -42,15 +41,11 @@ const puppeteer = require('puppeteer');
     }, qr);
     await page.addScriptTag({ path: path.join(__dirname, '../Electron/telegram-renderer.js') });
     await page.addScriptTag({ path: path.join(__dirname, '../Electron/groups-renderer.js') });
-    await page.type('#telegram-api-id', '1'); await page.type('#telegram-api-hash', 'a'.repeat(32));
-    await page.click('#telegram-connect');
-    await page.waitForFunction(() => document.getElementById('telegram-feedback').textContent.includes('inválidas'));
-    assert.equal(await page.$eval('#telegram-api-id', e => e.disabled), false);
-    await page.$eval('#telegram-api-id', e => { e.value = '12345'; });
-    await page.type('#telegram-api-hash', 'a'.repeat(32));
+    assert.equal(await page.$('#telegram-api-id'), null);
+    assert.equal(await page.$('#telegram-api-hash'), null);
     await page.click('#telegram-connect');
     await page.waitForFunction(() => !document.getElementById('telegram-qr-area').hidden);
-    assert.equal(await page.$eval('#telegram-api-hash', e => e.value), '');
+    assert.deepEqual(await page.evaluate(() => window.connections), [[]]);
     await page.evaluate(() => window.emitTg({ connected: false, phase: 'password', passwordRequired: true, hint: 'Minha dica' }));
     assert.equal(await page.$eval('#telegram-qr-area', e => e.hidden), true);
     await page.type('#telegram-password', 'senha-teste');
@@ -89,6 +84,6 @@ const puppeteer = require('puppeteer');
       await page.screenshot({ path: path.join(out, `telegram-${width}.png`) });
     }
     assert.deepEqual(errors, []);
-    console.log('Interface Telegram: QR, senha 2FA, correção de credenciais, seleção por plataforma, sessões simultâneas, logout isolado e layouts OK.');
+    console.log('Interface Telegram: somente QR, sem campos de API, senha 2FA, seleção por plataforma, sessões simultâneas, logout isolado e layouts OK.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

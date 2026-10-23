@@ -4,8 +4,9 @@ const { createTelegramConnection, isTelegramGroupId } = require('./telegram-clie
 const { createGroupMonitor } = require('./group-monitor');
 const { createGroupScheduler } = require('./group-scheduler');
 const { recordGroupActivity } = require('./group-runtime');
-function installTelegram({ ipcMain, safeStorage, root, emit, processPrivate, onError = () => {}, connectionFactory = createTelegramConnection }) {
-  const authPath = path.join(root, 'telegram-auth.bin');
+function installTelegram({ ipcMain, root, executablePath, emit, processPrivate, onError = () => {}, connectionFactory = createTelegramConnection }) {
+  const markerPath = path.join(root, 'telegram-web-state.json');
+  const sessionPath = path.resolve(root, 'telegram-web-session');
   const groupsPath = path.join(root, 'telegram-groups.json');
   let activity = {};
   const readGroups = () => fs.existsSync(groupsPath) ? JSON.parse(fs.readFileSync(groupsPath, 'utf8')) : {};
@@ -19,16 +20,13 @@ function installTelegram({ ipcMain, safeStorage, root, emit, processPrivate, onE
     await new Promise(resolve => setTimeout(resolve, Math.min(6000, Math.max(900, String(text || '').length * 38))));
   };
   const tg = connectionFactory({
-    readAuth: () => {
-      if (!fs.existsSync(authPath)) return null;
-      if (!safeStorage.isEncryptionAvailable()) throw new Error('A criptografia do Windows está indisponível para abrir a sessão Telegram.');
-      return JSON.parse(safeStorage.decryptString(fs.readFileSync(authPath)));
+    sessionPath, executablePath,
+    saveSession: state => write(markerPath, JSON.stringify(state)),
+    clearSession: () => {
+      if (path.dirname(sessionPath) !== path.resolve(root) || path.basename(sessionPath) !== 'telegram-web-session') throw new Error('Diretório da sessão Telegram inválido.');
+      if (fs.existsSync(sessionPath)) fs.rmSync(sessionPath, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 });
+      for (const file of [markerPath, path.join(root, 'telegram-auth.bin')]) if (fs.existsSync(file)) fs.unlinkSync(file);
     },
-    writeAuth: auth => {
-      if (!safeStorage.isEncryptionAvailable()) throw new Error('A criptografia do Windows está indisponível para salvar a sessão Telegram.');
-      write(authPath, safeStorage.encryptString(JSON.stringify(auth)));
-    },
-    clearAuth: () => { if (fs.existsSync(authPath)) fs.unlinkSync(authPath); },
     onStatus: status => emit('telegram:status', status),
     onReady: () => {
       activity = {};
@@ -55,11 +53,8 @@ function installTelegram({ ipcMain, safeStorage, root, emit, processPrivate, onE
   const handle = (name, callback) => ipcMain.handle(name, async (_event, payload) => {
     try { return await callback(payload); } catch (error) { return { ok: false, error: error.message }; }
   });
-  handle('telegram:state', () => ({ ...tg.status(), savedSession: fs.existsSync(authPath) }));
-  handle('telegram:connect', async credentials => {
-    if (!safeStorage.isEncryptionAvailable()) throw new Error('A criptografia do Windows está indisponível.');
-    return tg.connect(credentials?.apiId ? credentials : undefined);
-  });
+  handle('telegram:state', () => ({ ...tg.status(), savedSession: fs.existsSync(markerPath) }));
+  handle('telegram:connect', () => tg.connect());
   handle('telegram:password', password => tg.password(password));
   handle('telegram:logout', () => tg.disconnect({ logout: true }));
   handle('telegram:groups:list', async () => ({ ok: true, account: tg.account(), groups: await tg.listGroups(), settings: monitor.settings() }));
@@ -76,8 +71,8 @@ function installTelegram({ ipcMain, safeStorage, root, emit, processPrivate, onE
   return {
     ...tg, hasSelectedGroup,
     restore: async () => {
-      if (!fs.existsSync(authPath)) return;
-      try { await tg.connect(undefined, { restoreOnly: true }); }
+      if (!fs.existsSync(markerPath)) return;
+      try { await tg.connect(); }
       catch (error) { emit('telegram:status', { connected: false, phase: 'error', error: error.message }); }
     }
   };

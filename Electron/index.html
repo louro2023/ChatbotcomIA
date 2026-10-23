@@ -240,9 +240,7 @@
             <div class="groups-command-heading"><div><span class="section-eyebrow">Conexão independente</span><h2>Telegram</h2></div><span id="telegram-status" class="group-badge">Desconectado</span></div>
             <p>Conecte uma conta do Telegram e uma do WhatsApp ao mesmo tempo. Cada plataforma mantém seus grupos e sua sessão.</p>
             <form id="telegram-connect-form">
-              <p>Obtenha as credenciais em <a href="https://my.telegram.org" target="_blank" rel="noreferrer">my.telegram.org → API development tools</a>. Preencha uma vez e leia o QR Code com o Telegram do celular.</p>
-              <label for="telegram-api-id">API ID</label><input id="telegram-api-id" type="text" inputmode="numeric" pattern="[0-9]+" autocomplete="off" placeholder="API ID do seu aplicativo">
-              <label for="telegram-api-hash">API Hash</label><input id="telegram-api-hash" type="password" autocomplete="off" placeholder="API Hash do seu aplicativo">
+              <p>Clique em conectar e escaneie o QR Code pelo Telegram do celular. A sessão é salva em um perfil próprio do Telegram Web, separado do WhatsApp.</p>
               <div class="groups-form-actions"><button class="btn btn-primary" id="telegram-connect" type="submit">Conectar Telegram / gerar QR Code</button><button class="btn btn-secondary" id="telegram-logout" type="button">Desconectar Telegram</button></div>
             </form>
             <p id="telegram-feedback" role="status" aria-live="polite"></p>

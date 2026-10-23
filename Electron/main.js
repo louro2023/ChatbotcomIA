@@ -182,7 +182,7 @@ const legacyProjectRoot = path.join(__dirname, '..');
 const persistentDataRoot = path.join(app.getPath('userData'), 'app-data');
 const configPath = path.join(persistentDataRoot, 'config.json');
 const telegram = require('./telegram-integration').installTelegram({
-  ipcMain, safeStorage, root: persistentDataRoot,
+  ipcMain, root: persistentDataRoot, executablePath: () => whatsappBrowserExecutable,
   emit: (name, data) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(name, data); },
   processPrivate: message => processIncomingMessage(message),
   onError: error => logRuntimeError('telegram', error)

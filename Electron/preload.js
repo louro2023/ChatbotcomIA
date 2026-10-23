@@ -2,7 +2,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   getTelegramState: () => ipcRenderer.invoke('telegram:state'),
-  connectTelegram: payload => ipcRenderer.invoke('telegram:connect', payload),
+  connectTelegram: () => ipcRenderer.invoke('telegram:connect'),
   submitTelegramPassword: password => ipcRenderer.invoke('telegram:password', password),
   logoutTelegram: () => ipcRenderer.invoke('telegram:logout'),
   onTelegramStatus: callback => ipcRenderer.on('telegram:status', (_event, data) => callback(data)),
